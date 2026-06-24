@@ -1,0 +1,136 @@
+api:
+  primary_survey: "lsst"
+  api_base_url: "https://api.lsst.fink-portal.org"
+  reference_api_base_url: "https://api.ztf.fink-portal.org"
+  request_timeout_seconds: 60
+  max_smoke_rows: 5
+  cache_responses: true
+
+paths:
+  data_dir: "data"
+  output_dir: "outputs"
+
+smoke_test:
+  schema_fixture: "fixtures/fink_lsst_schema.json"
+  tags_fixture: "fixtures/fink_lsst_tags.json"
+  statistics_fixture: "fixtures/fink_lsst_statistics_sample.json"
+  statistics_date: "2026"
+  max_sample_rows: 3
+  sample_tag: "in_tns"
+  sample_conesearch_ra:
+  sample_conesearch_dec:
+  sample_conesearch_radius_arcsec: 2
+
+bounded_extraction:
+  tag: "in_tns"
+  startdate: "2026-01-01"
+  stopdate: "2026-01-02"
+  night:
+  max_rows: 50
+  max_detail_objects: 10
+  request_timeout_seconds: 60
+  allowed_endpoints:
+    - "tags"
+    - "objects"
+    - "sources"
+    - "fp"
+    - "statistics"
+  columns:
+    tag_rows: "r:diaObjectId,r:diaSourceId,r:ra,r:dec,r:midpointMjdTai,r:band,r:psfFlux,r:psfFluxErr,f:clf_cats_class,f:clf_cats_score,f:main_label_classifier"
+    objects: "r:diaObjectId,r:diaSourceId,r:ra,r:dec,r:firstDiaSourceMjdTai,f:firstDiaSourceMjdTaiFink,f:main_label_classifier,f:main_label_crossmatch"
+    sources: "r:diaObjectId,r:diaSourceId,r:ra,r:dec,r:midpointMjdTai,r:band,r:psfFlux,r:psfFluxErr,f:clf_cats_class,f:clf_cats_score"
+    forced_photometry: "r:diaObjectId,r:diaForcedSourceId,r:ra,r:dec,r:midpointMjdTai,r:band,r:psfFlux,r:psfFluxErr,r:scienceFlux,r:scienceFluxErr"
+  output_format: "json"
+  enable_objects: true
+  enable_sources: true
+  enable_forced_photometry: true
+  fail_on_unbounded_query: true
+
+full_night_feasibility:
+  target_startdate: "2026-02-25"
+  target_stopdate: "2026-02-26"
+  timezone: "UTC"
+  api_date_window_convention: "UTC calendar dates; stopdate assumed exclusive unless Fink contract proves inclusive"
+  min_lsst_alert_date_utc: "2026-02-25"
+  reject_pre_alert_dates: true
+  target_tag: null
+  fallback_tag: "in_tns"
+  output_format: "json"
+  max_rows_per_partition: 50
+  max_total_rows_safety: 5000
+  max_detail_fetches: 50
+  allow_unfiltered_full_night_query: false
+  stop_if_safety_cap_hit: true
+  fail_on_possible_truncation: false
+  partition_strategy: "auto"
+  partition_dimensions_preference:
+    - time
+    - band
+    - tag
+    - sky
+  bands:
+    - u
+    - g
+    - r
+    - i
+    - z
+    - y
+  time_partitions:
+    initial_count: 8
+    max_count: 96
+  sky_partitions:
+    enabled: false
+    ra_bins: 4
+    dec_bins: 3
+  tags_to_test:
+    - in_tns
+    - extragalactic_new_candidate
+    - most_likely_sn
+    - hostless_candidate
+
+data_transfer:
+  enabled: false
+  dry_run: true
+  survey: "LSST"
+  target_startdate: "2026-02-25"
+  target_stopdate: "2026-02-26"
+  timezone: "UTC"
+  min_lsst_alert_date_utc: "2026-02-25"
+  reject_pre_alert_dates: true
+
+  preferred_output_format: "parquet"
+  fallback_output_formats:
+    - "avro"
+    - "json"
+
+  request_scope:
+    all_alerts: true
+    selected_blocks: []
+    selected_tags: []
+    selected_fields:
+      - "diaObjectId"
+      - "diaSourceId"
+      - "ra"
+      - "dec"
+      - "midpointMjdTai"
+      - "band"
+      - "psfFlux"
+      - "psfFluxErr"
+      - "scienceFlux"
+      - "scienceFluxErr"
+      - "forcedSourceOnDiaObject"
+      - "fink_broker_version"
+      - "fink_science_version"
+      - "fink_class"
+      - "fink_tags"
+
+  safety:
+    require_user_confirmation_to_submit: true
+    max_local_file_size_gb_warning: 5
+    never_store_credentials: true
+    allow_submit: false
+
+  local_paths:
+    raw_delivery_dir: "data/raw/data_transfer"
+    processed_dir: "data/processed/data_transfer"
+    reports_dir: "outputs/data_transfer"
