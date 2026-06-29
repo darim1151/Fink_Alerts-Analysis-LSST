@@ -133,3 +133,43 @@ python scripts/clean_safe_caches.py --apply
 ```
 
 The cleaner is restricted to cache files/directories and must not remove scientific data, source code, docs, configs, notebooks, or tests.
+
+## Adaptive Run Manifests
+
+## Which Command Should I Run?
+
+```bash
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
+python scripts/run_analysis.py --run-config CONFIG --stage triage
+python scripts/run_analysis.py --run-config CONFIG --stage inspect_raw
+python scripts/run_analysis.py --run-config CONFIG --stage ingest --dry-run
+python scripts/run_analysis.py --run-config CONFIG --stage all
+python scripts/check_commit_readiness.py
+```
+
+Use `run_analysis.py` for new manifest-driven work. Legacy scripts are retained for compatibility.
+
+Manifest configs live under:
+
+```text
+configs/runs/
+configs/runs/templates/
+```
+
+The run index is:
+
+```text
+configs/runs/index.yaml
+```
+
+These files are lightweight provenance/configuration artifacts and are intended to be tracked. They may point to local-only raw, processed, or output paths, but they must not contain credentials or scientific payload data.
+
+Use:
+
+```bash
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
+```
+
+Manifest-backed commands are preferred for future nightly, weekly, and historical reruns. Existing topic-based commands remain available for compatibility.

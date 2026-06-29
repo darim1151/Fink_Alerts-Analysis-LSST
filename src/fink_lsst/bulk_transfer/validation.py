@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -10,6 +12,7 @@ from fink_lsst.time_windows import validate_alert_start_date, validate_rows_with
 from fink_lsst.validation import result, validate_normalized_table
 
 from .ingest import COMPLETENESS_SCOPE
+from .run_manifest import RunManifest
 
 
 OBJECT_ID_COLUMNS = ("internal_object_id", "diaObjectId", "r:diaObjectId")
@@ -229,6 +232,122 @@ def summarize_validation_status(checks: list[dict[str, Any]]) -> str:
     return "passed_with_warnings" if warning_failures else "passed"
 
 
+def validate_run_outputs(
+    manifest: RunManifest,
+    processed_paths: dict[str, str],
+    raw_audit: dict[str, Any],
+    execution_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate manifest-driven run outputs and write claim-safe status details."""
+    tables = _read_tables(processed_paths)
+    config = {
+        "target_startdate": manifest.startdate,
+        "target_stopdate": manifest.stopdate,
+        "min_lsst_alert_date_utc": "2026-02-25",
+        "timezone": "UTC",
+        "request_scope": {"all_alerts": manifest.is_all_alert},
+    }
+    metadata = {
+        "raw_delivery": {
+            "empty": not bool(raw_audit.get("file_count")),
+            "file_count": raw_audit.get("file_count", 0),
+            "total_rows": raw_audit.get("parquet", {}).get("total_readable_rows", 0),
+            "nested_columns": raw_audit.get("schemas", {}).get("nested_columns", []),
+        },
+        "all_alerts": manifest.is_all_alert,
+        "filter": manifest.filters[0] if len(manifest.filters) == 1 else None,
+        "kafka_lag_zero": manifest.download_evidence.kafka_lag_zero,
+        "completeness_scope": _manifest_completeness_scope(manifest),
+    }
+    checks = validate_delivery_tables(tables, config, metadata=metadata)
+    nightly = validate_nightly_outputs(manifest, _nightly_paths_from_processed(processed_paths))
+    checks.extend(nightly["checks"])
+    status = summarize_validation_status(checks)
+    claim_updates = derive_claim_updates(manifest, {"validation_status": status, "checks": checks, "execution_manifest": execution_manifest})
+    return {
+        "run_name": manifest.run_name,
+        "validation_status": status,
+        "checks": checks,
+        "nightly_validation": nightly,
+        "claim_updates": claim_updates,
+    }
+
+
+def validate_nightly_outputs(manifest: RunManifest, nightly_outputs: dict[str, dict[str, str]]) -> dict[str, Any]:
+    """Validate night coverage without making completeness claims."""
+    checks = []
+    present_nights = sorted(night for night in nightly_outputs if night not in {"out_of_window", "unsplit", "unknown"})
+    expected = list(manifest.expected_nights)
+    missing = [night for night in expected if night not in present_nights]
+    checks.append(
+        result(
+            "nightly_outputs_present",
+            bool(nightly_outputs),
+            "Nightly outputs are present" if nightly_outputs else "No nightly outputs found",
+            severity="info" if nightly_outputs else "warning",
+        )
+    )
+    checks.append(
+        result(
+            "expected_night_coverage",
+            not missing,
+            "All expected nights have output" if not missing else "Some expected nights have no output",
+            severity="info" if not missing else "warning",
+            expected_nights=expected,
+            present_nights=present_nights,
+            missing_nights=missing,
+            out_of_window_present="out_of_window" in nightly_outputs,
+        )
+    )
+    return {"present_nights": present_nights, "missing_nights": missing, "checks": checks}
+
+
+def derive_claim_updates(manifest: RunManifest, validation_report: dict[str, Any]) -> dict[str, str]:
+    """Derive conservative claim states from manifest and validation evidence."""
+    partial = _execution_is_partial(validation_report.get("execution_manifest", {}))
+    if partial or manifest.filters or not manifest.is_all_alert:
+        return {
+            "all_alert_completeness": "blocked",
+            "night_completeness": "blocked",
+            "week_completeness": "blocked",
+            "reason": "partial/debug or filtered run cannot support completeness claims",
+        }
+    if manifest.packet_type == "unknown":
+        return {
+            "all_alert_completeness": "unresolved",
+            "night_completeness": "unresolved",
+            "week_completeness": "unresolved",
+            "reason": "packet type is unknown",
+        }
+    strict_ok = (
+        validation_report.get("validation_status") == "passed"
+        and manifest.download_evidence.kafka_lag_zero is True
+        and bool(manifest.download_evidence.expected_total_messages)
+        and manifest.download_evidence.local_readable_rows == manifest.download_evidence.expected_total_messages
+    )
+    if strict_ok and len(manifest.expected_nights) == 1:
+        return {
+            "all_alert_completeness": "allowed",
+            "night_completeness": "allowed",
+            "week_completeness": "blocked",
+            "reason": "strict single-night evidence is present",
+        }
+    return {
+        "all_alert_completeness": "unresolved",
+        "night_completeness": "unresolved",
+        "week_completeness": "unresolved",
+        "reason": "strict completeness evidence is not present",
+    }
+
+
+def write_run_validation_report(report: dict[str, Any], output_dir: str | Path) -> None:
+    """Write manifest-driven validation report artifacts."""
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "validation_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "VALIDATION_SUMMARY.md").write_text(_render_run_validation(report), encoding="utf-8")
+
+
 def _check_any_identifier(df: pd.DataFrame, check_name: str, candidates: tuple[str, ...]) -> dict[str, Any]:
     present = [column for column in candidates if column in df.columns]
     non_null = {column: int(df[column].notna().sum()) for column in present}
@@ -333,3 +452,71 @@ def _full_night_evidence_message(full_night_scope: bool, completeness_allowed: b
     if full_night_scope:
         return "Full-night scope is recorded, but completeness evidence is insufficient"
     return "Not a full-night scope; full-night completeness evidence is not applicable"
+
+
+def _read_tables(processed_paths: dict[str, str]) -> dict[str, pd.DataFrame]:
+    tables = {}
+    for name, path in processed_paths.items():
+        candidate = Path(path)
+        if candidate.suffix == ".parquet" and candidate.exists():
+            tables[name] = pd.read_parquet(candidate)
+    return tables
+
+
+def _nightly_paths_from_processed(processed_paths: dict[str, str]) -> dict[str, dict[str, str]]:
+    nightly: dict[str, dict[str, str]] = {}
+    for table_path in processed_paths.values():
+        path = Path(table_path)
+        try:
+            all_dir = path.parents[0]
+            nights_dir = all_dir.parent / "nights"
+        except IndexError:
+            continue
+        if not nights_dir.exists():
+            continue
+        for parquet in nights_dir.glob("*/*.parquet"):
+            nightly.setdefault(parquet.parent.name, {})[parquet.stem] = str(parquet)
+    return nightly
+
+
+def _manifest_completeness_scope(manifest: RunManifest) -> dict[str, Any]:
+    if manifest.filters:
+        return {
+            "scope": "tag_filtered_smoke_delivery",
+            "full_night_complete": False,
+            "reason": "filtered manifest; completeness claims blocked",
+        }
+    if manifest.is_all_alert and len(manifest.expected_nights) == 1:
+        return {
+            "scope": "full_night_all_alerts",
+            "full_night_complete": True,
+            "reason": "all-alert single-night manifest; validation still controls claims",
+        }
+    return {
+        "scope": manifest.scope,
+        "full_night_complete": False,
+        "week_complete": False,
+        "reason": "multi-night completeness remains unresolved without strict evidence",
+    }
+
+
+def _execution_is_partial(execution_manifest: dict[str, Any]) -> bool:
+    context = execution_manifest.get("run_context", {}) if isinstance(execution_manifest, dict) else {}
+    return "partial" in str(context.get("processed_dir", "")) or "partial" in str(context.get("output_dir", ""))
+
+
+def _render_run_validation(report: dict[str, Any]) -> str:
+    lines = [
+        "# Manifest-Driven Validation Summary",
+        "",
+        f"- Run: `{report.get('run_name')}`",
+        f"- Status: `{report.get('validation_status')}`",
+        f"- Claim updates: `{report.get('claim_updates')}`",
+        "",
+        "## Checks",
+        "",
+    ]
+    for check in report.get("checks", []):
+        status = "passed" if check.get("passed") else "failed"
+        lines.append(f"- `{check.get('check')}`: {status} - {check.get('message')}")
+    return "\n".join(lines) + "\n"

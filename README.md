@@ -55,6 +55,8 @@ python scripts/write_registration_checklist.py
 python scripts/prepare_data_transfer_smoke_request.py
 python scripts/prepare_full_night_transfer_request.py
 python scripts/report_data_transfer_next_action.py
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
 jupyter lab
 ```
 
@@ -153,6 +155,8 @@ See `docs/FINK_DATA_TRANSFER_REGISTRATION.md` and `docs/DATA_TRANSFER_DELIVERY_D
 See `docs/REAL_DELIVERY_INGESTION.md` for Checkpoint 6 real Data Transfer smoke ingestion, nested-field handling, diagnostics, and completeness limits.
 See `docs/FULL_NIGHT_TRANSFER_WORKFLOW.md` for Checkpoint 7 full-night all-alert preparation, topic registry, download command, ingestion, and validation gates.
 See `docs/FULL_WEEK_FULL_PACKET_WORKFLOW.md` for Checkpoint 8A full-week full-packet preflight, command generation, progress monitoring, and raw-schema inspection.
+See `docs/ADAPTIVE_RUN_MANIFESTS.md` for Checkpoint 9A manifest-driven run contracts, lifecycle states, claim states, and compatibility commands.
+See `docs/MANIFEST_DRIVEN_INGESTION.md` for Checkpoint 9B guarded manifest ingestion, nightly splitting, validation, and diagnostics.
 
 ## Hybrid Architecture
 
@@ -210,3 +214,56 @@ python scripts/run_full_night_ingestion.py --topic TOPIC
 ```
 
 Full-night completeness is claimed only if validation allows `completeness_claim_allowed`.
+
+## Adaptive Run Manifests
+
+Run configs live under `configs/runs/` and are indexed by `configs/runs/index.yaml`.
+
+```bash
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
+python scripts/run_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --stage triage \
+  --dry-run
+```
+
+Manifest mode is preferred for new Data Transfer analyses. Topic-based CLIs remain supported for compatibility.
+
+## Manifest-Driven Ingestion
+
+### Which Command Should I Run?
+
+```bash
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
+python scripts/run_analysis.py --run-config CONFIG --stage triage
+python scripts/run_analysis.py --run-config CONFIG --stage inspect_raw
+python scripts/run_analysis.py --run-config CONFIG --stage ingest --dry-run
+python scripts/run_analysis.py --run-config CONFIG --stage all
+```
+
+Use `run_analysis.py` for new manifest-driven work. Older topic-based scripts remain compatibility helpers for existing smoke/full-night/full-week workflows.
+
+Plan guarded ingestion without touching raw data:
+
+```bash
+python scripts/run_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --stage ingest \
+  --dry-run
+```
+
+Controlled partial/debug smoke check:
+
+```bash
+python scripts/run_analysis.py \
+  --run-config configs/runs/smoke_in_tns_2026-02-25.yaml \
+  --stage all \
+  --max-files 3 \
+  --allow-partial \
+  --skip-plots \
+  --write-report
+```
+
+Partial/debug outputs are not science-ready and cannot support completeness claims.

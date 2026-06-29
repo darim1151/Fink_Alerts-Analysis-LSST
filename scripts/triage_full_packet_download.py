@@ -11,6 +11,7 @@ from typing import Any
 
 from fink_lsst.bulk_transfer.raw_audit import build_raw_audit
 from fink_lsst.bulk_transfer.raw_readiness import classify_raw_readiness
+from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, topic_entry_from_manifest
 from fink_lsst.bulk_transfer.topic_registry import find_topic_entry, load_topic_registry
 
 
@@ -20,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--topic")
+    parser.add_argument("--run-config")
     parser.add_argument("--raw-dir")
     parser.add_argument("--registry", default="configs/data_transfer_topics.yaml")
     parser.add_argument("--expected-total", type=int)
@@ -28,10 +30,15 @@ def main() -> int:
     parser.add_argument("--write-report", action="store_true")
     args = parser.parse_args()
 
-    registry = load_topic_registry(PROJECT_ROOT / args.registry)
-    entry = find_topic_entry(registry, topic=args.topic) if args.topic else None
+    entry = None
+    if args.run_config:
+        entry = topic_entry_from_manifest(load_run_manifest(_abs(args.run_config)))
+    elif args.topic:
+        registry = load_topic_registry(PROJECT_ROOT / args.registry)
+        entry = find_topic_entry(registry, topic=args.topic)
     raw_dir = resolve_raw_dir(args.raw_dir, entry)
-    report = build_triage_report(raw_dir, entry, args.expected_total, args.progress_from_terminal)
+    expected_total = args.expected_total or (entry or {}).get("download_evidence", {}).get("expected_total_messages") or _expected_total_from_entry(entry)
+    report = build_triage_report(raw_dir, entry, expected_total, args.progress_from_terminal)
     if args.write_report and entry:
         output_base = output_base_for(entry)
         output_base.mkdir(parents=True, exist_ok=True)
@@ -112,6 +119,22 @@ def resolve_raw_dir(raw_dir: str | None, entry: dict[str, Any] | None) -> Path:
     else:
         raise SystemExit("Provide --raw-dir or a registered --topic")
     return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _abs(path: str) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
+
+
+def _expected_total_from_entry(entry: dict[str, Any] | None) -> int | None:
+    if not entry:
+        return None
+    value = entry.get("expected_total_messages")
+    if value is not None:
+        return int(value)
+    if entry.get("topic") == "ftransfer_lsst_2026-06-27_38507":
+        return 1071519
+    return None
 
 
 def output_base_for(entry: dict[str, Any]) -> Path:

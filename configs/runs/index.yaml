@@ -1,0 +1,7 @@
+runs:
+  smoke_in_tns_2026-02-25:
+    config: configs/runs/smoke_in_tns_2026-02-25.yaml
+    role: smoke_validation
+  full_week_full_packet_2026-02-25_to_2026-03-04:
+    config: configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml
+    role: production_scale_stress_test

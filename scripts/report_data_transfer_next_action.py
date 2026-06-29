@@ -13,6 +13,7 @@ from fink_lsst.bulk_transfer.ingest import find_latest_delivery_dir
 from fink_lsst.bulk_transfer.output_inspector import summarize_delivery
 from fink_lsst.bulk_transfer.readiness_decision import decide_data_transfer_readiness, render_next_action
 from fink_lsst.bulk_transfer.reporting import render_client_probe_report
+from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, topic_entry_from_manifest
 from fink_lsst.bulk_transfer.topic_registry import find_topic_entry, load_topic_registry
 from fink_lsst.storage import write_json
 
@@ -20,6 +21,7 @@ from fink_lsst.storage import write_json
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/local_smoke_test.yaml")
+    parser.add_argument("--run-config")
     parser.add_argument("--project-root", default=".")
     args = parser.parse_args()
     project_root = Path(args.project_root).resolve()
@@ -41,7 +43,13 @@ def main() -> int:
     validation = _latest_validation(output_dir / "smoke_delivery", latest_run)
     decision = decide_data_transfer_readiness(setup, client_probe, smoke_request, delivery, validation, processed_manifest)
     registry = load_topic_registry(project_root / "configs/data_transfer_topics.yaml")
-    full_week_entry = find_topic_entry(registry, scope="full_week_full_packet", latest=True)
+    full_week_entry = None
+    if args.run_config:
+        manifest_entry = topic_entry_from_manifest(load_run_manifest(_abs(args.run_config, project_root)))
+        if manifest_entry.get("scope") in {"full_week", "full_week_full_packet"}:
+            full_week_entry = manifest_entry
+    if not full_week_entry:
+        full_week_entry = find_topic_entry(registry, scope="full_week_full_packet", latest=True)
     if full_week_entry:
         decision = _full_week_decision(project_root, client_probe, full_week_entry, fallback=decision)
     write_json(decision, output_dir / "data_transfer_next_action.json", enforce_allowed_roots=False)
@@ -108,6 +116,11 @@ def _full_week_decision(project_root: Path, client_probe: dict, entry: dict, fal
         "full_night_request_allowed": False,
         "full_week_download_allowed": value == "ready_for_full_week_download",
     }
+
+
+def _abs(path: str, project_root: Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else project_root / candidate
 
 
 if __name__ == "__main__":

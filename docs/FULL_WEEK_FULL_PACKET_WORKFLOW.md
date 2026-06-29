@@ -117,3 +117,46 @@ Stop and review before ingestion if:
 ## Next Phase
 
 After raw download and inspection, build a full-packet ingestion policy using the observed schema. Do not process heavy binary/cutout-like fields into expanded tables until an explicit storage policy exists.
+
+## Manifest Mode
+
+## Which Command Should I Run?
+
+```bash
+python scripts/list_analysis_runs.py
+python scripts/validate_run_manifest.py --all
+python scripts/run_analysis.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml --stage triage
+python scripts/run_analysis.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml --stage inspect_raw
+python scripts/run_analysis.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml --stage ingest --dry-run
+```
+
+Older topic-based commands in this document are compatibility helpers.
+
+Checkpoint 9A adds a manifest for this run:
+
+```text
+configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml
+```
+
+Preferred safe commands:
+
+```bash
+python scripts/validate_run_manifest.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml
+python scripts/triage_full_packet_download.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml --expected-total 1071519 --write-report
+python scripts/run_analysis.py --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml --stage triage --dry-run
+```
+
+Topic-based commands remain supported. Manifest mode is preferred for new work because it records date window, packet type, paths, lifecycle state, and claim state together.
+
+## Manifest-Driven Ingestion
+
+After raw triage reports the full-week delivery is ready for raw schema inspection, ingestion can be planned through the unified runner:
+
+```bash
+python scripts/run_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --stage ingest \
+  --dry-run
+```
+
+Actual full-week ingestion is guarded and will refuse raw-missing, active, partial, corrupt, or disk-risk states unless `--allow-partial` is explicitly set. Partial mode is for schema/debug only and cannot support science completeness claims.

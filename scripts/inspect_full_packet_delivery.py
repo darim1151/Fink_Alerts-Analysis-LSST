@@ -10,6 +10,7 @@ from typing import Any
 
 from fink_lsst.bulk_transfer.raw_audit import build_raw_audit
 from fink_lsst.bulk_transfer.raw_readiness import classify_raw_readiness, partial_ingestion_blocked
+from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, topic_entry_from_manifest
 from fink_lsst.bulk_transfer.topic_registry import find_topic_entry, load_topic_registry
 
 
@@ -20,11 +21,16 @@ HEAVY_MARKERS = ("cutout", "stamp", "image", "fits", "bytes", "binary")
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--topic")
+    parser.add_argument("--run-config")
     parser.add_argument("--raw-dir")
     parser.add_argument("--registry", default="configs/data_transfer_topics.yaml")
     args = parser.parse_args()
-    registry = load_topic_registry(PROJECT_ROOT / args.registry)
-    entry = find_topic_entry(registry, topic=args.topic) if args.topic else None
+    entry = None
+    if args.run_config:
+        entry = topic_entry_from_manifest(load_run_manifest(_abs(args.run_config)))
+    elif args.topic:
+        registry = load_topic_registry(PROJECT_ROOT / args.registry)
+        entry = find_topic_entry(registry, topic=args.topic)
     raw_dir = Path(args.raw_dir) if args.raw_dir else Path((entry or {}).get("raw_delivery_dir", ""))
     raw_dir = raw_dir if raw_dir.is_absolute() else PROJECT_ROOT / raw_dir
     output_base = output_base_for(entry)
@@ -39,7 +45,7 @@ def main() -> int:
     readiness = classify_raw_readiness(audit)
     inventory = build_inventory(audit, readiness)
     (output_base / "raw_full_packet_field_inventory.json").write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_base / "schema_groups.json").write_text(json.dumps(summary.get("schema_groups", []), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output_base / "schema_groups.json").write_text(json.dumps(inventory.get("schema_groups", []), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_base / "RAW_FULL_PACKET_FIELD_INVENTORY.md").write_text(render_inventory(inventory), encoding="utf-8")
     print(render_inventory(inventory))
     return 0
@@ -107,6 +113,11 @@ def output_base_for(entry: dict[str, Any] | None) -> Path:
     if entry:
         return PROJECT_ROOT / "outputs/data_transfer/full_week_full_packet" / f"{entry['utc_start']}_to_{entry['utc_stop']}"
     return PROJECT_ROOT / "outputs/data_transfer/full_week_full_packet/unregistered"
+
+
+def _abs(path: str) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
 
 
 if __name__ == "__main__":

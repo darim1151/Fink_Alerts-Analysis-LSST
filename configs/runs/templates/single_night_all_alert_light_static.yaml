@@ -1,0 +1,41 @@
+schema_version: 1
+run_name: template_single_night_all_alert_light_static
+run_id: null
+survey: lsst
+broker: fink
+topic: null
+batch_id: null
+startdate: '2026-02-25'
+stopdate: '2026-02-26'
+date_mode: utc_window
+scope: single_night
+packet_type: light_static
+content: Light static packet
+filters: []
+is_all_alert: true
+expected_nights:
+- '2026-02-25'
+lifecycle_state: declared
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: unresolved
+paths:
+  raw_dir: data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/template_topic
+  processed_dir: data/processed/data_transfer/full_night/2026-02-25_to_2026-02-26/template_run
+  outputs_dir: outputs/data_transfer/full_night/2026-02-25_to_2026-02-26/template_run
+processing:
+  split_by_night: true
+  allow_partial: false
+  max_files: null
+  diagnostics: true
+  validation: true
+  plots: true
+download_evidence:
+  kafka_lag_zero: null
+  expected_total_messages: null
+  terminal_progress_messages: null
+  local_readable_rows: null
+  raw_file_count: null
+  raw_size_bytes: null
+notes: Template for one all-alert night using light static packets.

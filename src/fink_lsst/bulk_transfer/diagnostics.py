@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+from .nightly_split import derive_night_key_from_dataframe
 
 
 def summarize_alert_delivery(df: pd.DataFrame) -> dict[str, Any]:
@@ -170,6 +174,82 @@ def build_science_readiness_report(
     return diagnostics
 
 
+def build_run_diagnostics(
+    manifest: Any,
+    tables: dict[str, pd.DataFrame],
+    raw_audit: dict[str, Any] | None = None,
+    nested_report: dict[str, Any] | None = None,
+    validation_status: str | None = None,
+) -> dict[str, Any]:
+    """Build manifest-driven data-quality diagnostics without interpretation claims."""
+    alerts = tables.get("alerts", pd.DataFrame())
+    keys, night_warnings = derive_night_key_from_dataframe(alerts, getattr(manifest, "startdate", None), getattr(manifest, "stopdate", None)) if not alerts.empty else (pd.Series(dtype="object"), [])
+    rows_by_night = {str(key): int(value) for key, value in keys.fillna("unknown").value_counts().items()} if not keys.empty else {}
+    report = build_science_readiness_report(
+        tables,
+        inspection=_inspection_from_raw_audit(raw_audit or {}),
+        validation_status=validation_status,
+        nested_report=nested_report,
+        scope=getattr(manifest, "scope", "unknown"),
+    )
+    report.update(
+        {
+            "run_name": getattr(manifest, "run_name", None),
+            "packet_type": getattr(manifest, "packet_type", None),
+            "rows_by_night": rows_by_night,
+            "night_warnings": night_warnings,
+            "missingness": _missingness(alerts),
+            "rows_by_raw_file": _rows_by_raw_file(alerts),
+            "out_of_window_rows": rows_by_night.get("out_of_window", 0),
+        }
+    )
+    report["markdown"] = render_run_diagnostics_markdown(report)
+    return report
+
+
+def build_nightly_diagnostics(manifest: Any, nightly_tables: dict[str, dict[str, pd.DataFrame]]) -> dict[str, Any]:
+    """Build per-night data-quality diagnostics."""
+    diagnostics: dict[str, Any] = {}
+    for night, tables in nightly_tables.items():
+        diagnostics[night] = build_run_diagnostics(manifest, tables)
+    return diagnostics
+
+
+def write_diagnostics_report(report: dict[str, Any], output_dir: str | Path) -> None:
+    """Write manifest-driven diagnostics artifacts."""
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "diagnostics_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "DIAGNOSTICS.md").write_text(render_run_diagnostics_markdown(report), encoding="utf-8")
+
+
+def render_run_diagnostics_markdown(report: dict[str, Any]) -> str:
+    """Render manifest-driven run diagnostics."""
+    base = render_science_diagnostics_markdown(report)
+    lines = [
+        base.rstrip(),
+        "",
+        "## Manifest Run Diagnostics",
+        "",
+        f"- Run: `{report.get('run_name')}`",
+        f"- Packet type: `{report.get('packet_type')}`",
+        f"- Out-of-window rows: `{report.get('out_of_window_rows')}`",
+        "",
+        "## Rows By Night",
+        "",
+    ]
+    for night, count in sorted((report.get("rows_by_night") or {}).items()):
+        lines.append(f"- `{night}`: `{count}`")
+    if not report.get("rows_by_night"):
+        lines.append("- No night keys derived.")
+    lines.extend(["", "## Missingness", ""])
+    for column, count in list((report.get("missingness") or {}).items())[:30]:
+        lines.append(f"- `{column}`: `{count}` missing")
+    if not report.get("missingness"):
+        lines.append("- No alert table missingness available.")
+    return "\n".join(lines) + "\n"
+
+
 def render_smoke_diagnostics_markdown(report: dict[str, Any]) -> str:
     """Render smoke diagnostics as Markdown."""
     return render_science_diagnostics_markdown(report)
@@ -258,3 +338,25 @@ def _first_present(df: pd.DataFrame, candidates: tuple[str, ...]) -> str | None:
 def _value_counts(series: pd.Series, limit: int = 20) -> dict[str, int]:
     serializable = series.dropna().map(lambda value: str(value)[:200])
     return {str(key): int(value) for key, value in serializable.value_counts().head(limit).items()}
+
+
+def _inspection_from_raw_audit(raw_audit: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file_count": raw_audit.get("file_count", 0),
+        "total_rows": raw_audit.get("parquet", {}).get("total_readable_rows", 0),
+        "nested_columns": raw_audit.get("schemas", {}).get("nested_columns", []),
+        "schema_group_count": raw_audit.get("schemas", {}).get("schema_group_count", 0),
+    }
+
+
+def _missingness(df: pd.DataFrame) -> dict[str, int]:
+    if df.empty:
+        return {}
+    keys = ("diaObjectId", "diaSourceId", "internal_object_id", "internal_source_id", "ra", "dec", "band", "time_mjd", "midpointMjdTai")
+    return {column: int(df[column].isna().sum()) for column in keys if column in df.columns}
+
+
+def _rows_by_raw_file(df: pd.DataFrame) -> dict[str, int]:
+    if df.empty or "_raw_file" not in df.columns:
+        return {}
+    return {str(key): int(value) for key, value in df["_raw_file"].value_counts().items()}

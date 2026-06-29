@@ -1,0 +1,41 @@
+schema_version: 1
+run_name: template_partial_schema_only
+run_id: null
+survey: lsst
+broker: fink
+topic: null
+batch_id: null
+startdate: '2026-02-25'
+stopdate: '2026-02-26'
+date_mode: utc_window
+scope: partial_schema_only
+packet_type: unknown
+content: Schema-only inspection
+filters: []
+is_all_alert: false
+expected_nights:
+- '2026-02-25'
+lifecycle_state: declared
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: blocked
+paths:
+  raw_dir: data/raw/data_transfer/partial_schema_only/2026-02-25_to_2026-02-26/template_topic
+  processed_dir: data/processed/data_transfer/partial_schema_only/2026-02-25_to_2026-02-26/template_run
+  outputs_dir: outputs/data_transfer/partial_schema_only/2026-02-25_to_2026-02-26/template_run
+processing:
+  split_by_night: false
+  allow_partial: true
+  max_files: 10
+  diagnostics: true
+  validation: true
+  plots: false
+download_evidence:
+  kafka_lag_zero: null
+  expected_total_messages: null
+  terminal_progress_messages: null
+  local_readable_rows: null
+  raw_file_count: null
+  raw_size_bytes: null
+notes: Template for schema-only or partial raw inspection. No science claims.

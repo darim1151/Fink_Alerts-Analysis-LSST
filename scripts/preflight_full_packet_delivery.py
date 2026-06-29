@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 
+from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, topic_entry_from_manifest
 from fink_lsst.bulk_transfer.topic_registry import find_topic_entry, load_topic_registry
 
 
@@ -23,12 +24,18 @@ SECRET_MARKERS = ("password", "token", "secret", "credential", "sasl", "jaas")
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default="configs/data_transfer_topics.yaml")
-    parser.add_argument("--topic", required=True)
+    parser.add_argument("--topic")
+    parser.add_argument("--run-config")
     parser.add_argument("--allow-existing-raw", action="store_true")
     args = parser.parse_args()
 
-    registry = load_topic_registry(PROJECT_ROOT / args.registry)
-    entry = find_topic_entry(registry, topic=args.topic)
+    if args.run_config:
+        entry = topic_entry_from_manifest(load_run_manifest(_abs(args.run_config)))
+    elif args.topic:
+        registry = load_topic_registry(PROJECT_ROOT / args.registry)
+        entry = find_topic_entry(registry, topic=args.topic)
+    else:
+        parser.error("provide --topic or --run-config")
     report = build_preflight_report(entry, allow_existing_raw=args.allow_existing_raw, registry_path=PROJECT_ROOT / args.registry)
     output_base = output_base_for(entry)
     output_base.mkdir(parents=True, exist_ok=True)
@@ -149,6 +156,11 @@ def is_relative_to(path: Path, parent: Path) -> bool:
 
 def run(args: list[str]) -> str:
     return subprocess.run(args, cwd=PROJECT_ROOT, text=True, capture_output=True, check=False).stdout
+
+
+def _abs(path: str) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
 
 
 if __name__ == "__main__":

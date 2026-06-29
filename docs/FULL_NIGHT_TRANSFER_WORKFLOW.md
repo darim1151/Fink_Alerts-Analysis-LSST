@@ -84,3 +84,20 @@ Validation allows `completeness_claim_allowed` only when the evidence supports i
 - date-window validation passes, or the window mismatch is explicitly explained
 
 If any of these fail, keep the full-night claim blocked or unresolved.
+
+## Manifest Mode
+
+Checkpoint 9A adds adaptive run manifests under `configs/runs/`. For new full-night requests, start from one of:
+
+```text
+configs/runs/templates/single_night_all_alert_light_static.yaml
+configs/runs/templates/single_night_full_packet.yaml
+```
+
+Then validate the manifest before any portal or download work:
+
+```bash
+python scripts/validate_run_manifest.py --run-config configs/runs/YOUR_FULL_NIGHT_RUN.yaml
+```
+
+The manifest keeps the run window, packet type, filters, paths, lifecycle state, and claim state in one provenance object. A full-night completeness claim remains blocked or unresolved until strict validation updates it.
