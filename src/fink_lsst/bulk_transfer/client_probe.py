@@ -10,7 +10,8 @@ from typing import Any
 
 
 LIKELY_MODULES = ("fink_client", "fink-client", "finkclient")
-LIKELY_COMMANDS = ("fink-client", "fink_client", "finkclient")
+LIKELY_COMMANDS = ("fink-client", "fink_client", "finkclient", "fink_datatransfer", "fink_client_register")
+LIKELY_ENTRY_POINTS = ("fink_datatransfer", "fink_client_register", "fink_consumer")
 
 
 def probe_fink_client_import(module_names: tuple[str, ...] = LIKELY_MODULES) -> dict[str, Any]:
@@ -60,6 +61,28 @@ def probe_available_fink_client_commands(command_names: tuple[str, ...] = LIKELY
     }
 
 
+def probe_fink_client_entry_points(entry_point_names: tuple[str, ...] = LIKELY_ENTRY_POINTS) -> dict[str, Any]:
+    """Probe installed console scripts even when they are not exposed on PATH."""
+    try:
+        entry_points = importlib.metadata.entry_points()
+        if hasattr(entry_points, "select"):
+            console_scripts = entry_points.select(group="console_scripts")
+        else:
+            console_scripts = entry_points.get("console_scripts", [])
+    except Exception as exc:  # noqa: BLE001
+        return {"name": "fink_client_entry_points", "ok": False, "error": str(exc), "entry_points": []}
+    discovered = []
+    wanted = set(entry_point_names)
+    for entry_point in console_scripts:
+        if entry_point.name in wanted:
+            discovered.append({"name": entry_point.name, "value": entry_point.value})
+    return {
+        "name": "fink_client_entry_points",
+        "ok": bool(discovered),
+        "entry_points": discovered,
+    }
+
+
 def _probe_help(executable: str) -> dict[str, Any]:
     try:
         completed = subprocess.run([executable, "--help"], check=False, capture_output=True, text=True, timeout=10)
@@ -102,12 +125,17 @@ def run_safe_client_probes() -> dict[str, Any]:
         probe_fink_client_import(),
         probe_fink_client_package_version(),
         probe_available_fink_client_commands(),
+        probe_fink_client_entry_points(),
         probe_authentication_status_safe(),
         probe_data_transfer_capabilities_safe(),
     ]
+    command_available = bool(next((probe.get("ok") for probe in probes if probe["name"] == "fink_client_commands"), False))
+    entry_point_available = bool(next((probe.get("ok") for probe in probes if probe["name"] == "fink_client_entry_points"), False))
     return {
         "package_installed": bool(next((probe.get("ok") for probe in probes if probe["name"] == "fink_client_package_version"), False)),
-        "cli_available": bool(next((probe.get("ok") for probe in probes if probe["name"] == "fink_client_commands"), False)),
+        "cli_available": command_available or entry_point_available,
+        "path_cli_available": command_available,
+        "entry_point_cli_available": entry_point_available,
         "version_known": bool(next((probe.get("version") for probe in probes if probe["name"] == "fink_client_package_version"), None)),
         "authentication_known": False,
         "probes": probes,

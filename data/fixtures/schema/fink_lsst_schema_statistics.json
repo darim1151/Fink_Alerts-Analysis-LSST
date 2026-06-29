@@ -1,0 +1,136 @@
+{
+  "Fink science module outputs (f:)": {
+    "alerts": {
+      "doc": "Number of alerts processed",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_g": {
+      "doc": "Number of alerts processed for band g",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_i": {
+      "doc": "Number of alerts processed for band i",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_r": {
+      "doc": "Number of alerts processed for band r",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_u": {
+      "doc": "Number of alerts processed for band u",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_y": {
+      "doc": "Number of alerts processed for band y",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "alerts_z": {
+      "doc": "Number of alerts processed for band z",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "fink_broker_version": {
+      "doc": "fink-broker version used to process the alert data",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "str"
+    },
+    "fink_science_version": {
+      "doc": "fink-science version used to process the alert data",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "str"
+    },
+    "glint_trail": {
+      "doc": "Number of alerts with the flag glint_trail",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "in_tns": {
+      "doc": "Number of alerts with a counterpart in TNS",
+      "fink_broker_version": "4.1",
+      "fink_science_version": "8.34.0",
+      "type": "int"
+    },
+    "isDipole": {
+      "doc": "Number of alerts with the flag isDipole",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "is_cataloged": {
+      "doc": "Number of alerts with a counterpart in SIMBAD or Gaia DR3.",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "is_first": {
+      "doc": "Number of alerts with first detection",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "is_sso": {
+      "doc": "Number of alerts associated to a Solar System objects",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "lsst_schema_version": {
+      "doc": "LSST schema version used to generate alert data",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "str"
+    },
+    "night": {
+      "doc": "Observation date in the form YYYYMMDD",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "objects": {
+      "doc": "Number of unique objects for the night",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "pixelFlags_cr": {
+      "doc": "Number of alerts with the flag pixelFlags_cr",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "pixelFlags_saturated": {
+      "doc": "Number of alerts with the flag pixelFlags_saturated",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "pixelFlags_streak": {
+      "doc": "Number of alerts with the flag pixelFlags_streak",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    },
+    "visits": {
+      "doc": "Number of visits",
+      "fink_broker_version": "4.0",
+      "fink_science_version": "8.26.0",
+      "type": "int"
+    }
+  }
+}

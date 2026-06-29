@@ -1,0 +1,78 @@
+{
+  "LSST original fields (r:)": {
+    "band": {
+      "doc": "Filter band this source was observed with.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "dec": {
+      "doc": "Declination coordinate of the position of the DiaObject [deg].",
+      "type": "double"
+    },
+    "detector": {
+      "doc": "Id of the detector where this forcedSource was measured. Datatype short instead of byte because of DB concerns about unsigned bytes.",
+      "type": "int"
+    },
+    "diaForcedSourceId": {
+      "doc": "Unique id.",
+      "type": "long"
+    },
+    "diaObjectId": {
+      "doc": "Id of the DiaObject that this DiaForcedSource was associated with.",
+      "type": "long"
+    },
+    "midpointMjdTai": {
+      "doc": "Effective mid-visit time for this diaForcedSource, expressed as Modified Julian Date, International Atomic Time [d].",
+      "type": "double"
+    },
+    "psfFlux": {
+      "doc": "Point Source model flux [nJy].",
+      "type": [
+        "null",
+        "float"
+      ]
+    },
+    "psfFluxErr": {
+      "doc": "Uncertainty of psfFlux [nJy].",
+      "type": [
+        "null",
+        "float"
+      ]
+    },
+    "ra": {
+      "doc": "Right ascension coordinate of the position of the DiaObject [deg].",
+      "type": "double"
+    },
+    "scienceFlux": {
+      "doc": "Forced photometry flux for a point source model measured on the visit image centered at the DiaObject position [nJy].",
+      "type": [
+        "null",
+        "float"
+      ]
+    },
+    "scienceFluxErr": {
+      "doc": "Uncertainty of scienceFlux [nJy].",
+      "type": [
+        "null",
+        "float"
+      ]
+    },
+    "timeProcessedMjdTai": {
+      "doc": "Time when this record was generated, expressed as Modified Julian Date, International Atomic Time.",
+      "type": "double"
+    },
+    "timeWithdrawnMjdTai": {
+      "doc": "Time when this record was marked invalid, expressed as Modified Julian Date, International Atomic Time.",
+      "type": [
+        "null",
+        "double"
+      ]
+    },
+    "visit": {
+      "doc": "Id of the visit where this forcedSource was measured.",
+      "type": "long"
+    }
+  }
+}

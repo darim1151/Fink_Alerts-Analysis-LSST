@@ -1,0 +1,39 @@
+ M README.md
+ M docs/DATA_MODEL.md
+ M docs/DATA_TRANSFER_DELIVERY_DROPZONE.md
+ M docs/DATA_TRANSFER_PLAN.md
+ M docs/FINK_ACCESS_NOTES.md
+ M scripts/report_data_transfer_next_action.py
+ M scripts/run_data_transfer_smoke_ingestion.py
+ M scripts/validate_data_transfer_delivery.py
+ M src/fink_lsst/bulk_transfer/client_probe.py
+ M src/fink_lsst/bulk_transfer/ingest.py
+ M src/fink_lsst/bulk_transfer/output_inspector.py
+ M src/fink_lsst/bulk_transfer/readiness_decision.py
+ M src/fink_lsst/bulk_transfer/reporting.py
+ M src/fink_lsst/bulk_transfer/validation.py
+?? arrow_schema_ftransfer_lsst_2026-06-24_657339.metadata
+?? avro_schema_ftransfer_lsst_2026-06-24_657339.json
+?? configs/data_transfer_topics.yaml
+?? data/fixtures/
+?? data/processed/
+?? data/raw/
+?? docs/FULL_NIGHT_TRANSFER_WORKFLOW.md
+?? docs/REAL_DELIVERY_INGESTION.md
+?? notebooks/06_data_transfer_smoke_ingestion.ipynb
+?? outputs/api_contracts/
+?? outputs/bounded_extraction/
+?? outputs/data_transfer/
+?? outputs/full_night_feasibility/
+?? outputs/id_discovery/
+?? outputs/minimal_ingestion/
+?? outputs/smoke_test/
+?? scripts/prepare_full_night_transfer_request.py
+?? scripts/print_data_transfer_download_command.py
+?? scripts/run_data_transfer_pipeline.py
+?? scripts/run_full_night_ingestion.py
+?? src/fink_lsst/bulk_transfer/diagnostics.py
+?? src/fink_lsst/bulk_transfer/nested.py
+?? src/fink_lsst/bulk_transfer/plots.py
+?? src/fink_lsst/bulk_transfer/topic_registry.py
+?? tests/test_data_transfer_smoke_hardening.py

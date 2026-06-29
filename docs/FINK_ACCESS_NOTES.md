@@ -17,19 +17,22 @@ Relevant public documentation:
 
 The public REST API is the right fit for this phase because it supports small programmatic queries without login. This repository uses only tiny endpoint probes and saved fixtures.
 
-## Services Avoided In This Phase
+## Services Used Or Avoided In This Phase
 
-This phase avoids:
+REST remains the public/no-login path for tiny metadata, bounded candidate, and known-ID checks.
 
-- Data Transfer
-- Kafka
+Data Transfer is now active for a real bounded smoke delivery. Access, registration, transfer topic consumption, and local ingestion have been validated outside the public REST lane, but this repository still does not store credentials or submit new jobs without explicit user confirmation.
+
+This phase still avoids:
+
 - Livestream
 - Spark
-- Login-gated services
+- new unconfirmed login-gated workflows
+- credential or token capture in repository artifacts
 - Large downloads
 - Cutout/FITS/image downloads
 
-Fink documentation distinguishes the REST API from Livestream and Data Transfer. Livestream is for real-time alert data selected by filters and requires login. Data Transfer is for bulk alert access, complex queries, and Spark/Kafka workflows, and also requires login.
+Fink documentation distinguishes the REST API from Livestream and Data Transfer. Livestream is for real-time alert data selected by filters and requires login. Data Transfer is for bulk alert access, complex queries, and Spark/Kafka workflows, and also requires login. In this repository, Data Transfer work is represented only by local raw/processed artifacts and safe client probes unless the user explicitly confirms a future request.
 
 ## Safe Public Endpoints For Reconnaissance
 
@@ -93,6 +96,12 @@ The initial sandboxed probe failed with DNS resolution errors. The successful ta
 - What public/no-login constraints will apply once LSST-scale data is live.
 - Whether forced photometry can be bounded by row count directly, or only indirectly through capped object-detail retrieval.
 - Whether public REST exposes a safe all-alert enumeration path for a complete UTC night, or whether full-night work should move to Data Transfer.
+
+## Real Data Transfer Smoke Status
+
+The real smoke transfer topic `ftransfer_lsst_2026-06-24_657339` delivered 20 Parquet files with 8,731 rows for `2026-02-25` to `2026-02-26` UTC using the `in_tns` filter and light static packet content.
+
+The ingestion pipeline preserves raw files unchanged and sanitizes nested processed columns such as `lc_features`, `clf`, `xm`, `pred`, and `misc`. The current validation status supports moving toward a first full-night request only after explicit user confirmation. It does not establish full-night completeness for the smoke delivery.
 
 ## Hybrid Access Direction
 

@@ -178,18 +178,47 @@ Partitioned full-night feasibility writes timestamped artifacts under:
 
 These products are written only when bounded partitions return rows. A partition result status of `possibly_truncated`, `failed`, `unsupported`, `unsafe`, or `skipped` prevents a full-night completeness claim.
 
-## Checkpoint 4 Data Transfer Tables
+## Checkpoint 4-6 Data Transfer Tables
 
-Future Data Transfer deliveries are expected under:
+Data Transfer deliveries are expected under:
 
 - `data/raw/data_transfer/`
 
-After ingestion, processed outputs are written under:
+The first real smoke delivery is stored under:
 
-- `data/processed/data_transfer/<run_id>/alerts.parquet`
-- `data/processed/data_transfer/<run_id>/objects.parquet`
-- `data/processed/data_transfer/<run_id>/forced_photometry.parquet` when available
-- `data/processed/data_transfer/<run_id>/classification_context.parquet` when available
-- `data/processed/data_transfer/<run_id>/nightly_summary.parquet`
+- `data/raw/data_transfer/smoke_delivery/ftransfer_lsst_2026-06-24_657339/`
+
+After smoke ingestion, processed outputs are written under:
+
+- `data/processed/data_transfer/smoke_delivery/<run_id>/alerts.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/objects.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/forced_photometry.parquet` when available
+- `data/processed/data_transfer/smoke_delivery/<run_id>/classifications.parquet` when available
+- `data/processed/data_transfer/smoke_delivery/<run_id>/lightcurve_features.parquet` when `lc_features` can be expanded
+- `data/processed/data_transfer/smoke_delivery/<run_id>/nightly_summary.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/manifest.json`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/nested_conversion_report.json`
 
 These tables reuse the same internal convenience columns as REST-derived products where possible, including object/source IDs, coordinates, time MJD, band, flux, classification, and provenance fields.
+
+Real Fink LSST Data Transfer payloads can include nested Arrow fields. The current smoke schema includes nested `lc_features`, `clf`, `xm`, `pred`, and `misc` fields. Processed Parquet tables preserve those values as stable JSON strings rather than dropping them. `alerts.parquet` includes `lc_features_json`, and `lightcurve_features.parquet` expands feature maps into linked object/source/band rows when possible.
+
+The current smoke products are tagged with:
+
+- `scope = tag_filtered_smoke_delivery`
+- `full_night_complete = false`
+- reason: `in_tns filter and light static packet; not all-alert full-night production`
+
+## Checkpoint 7 Full-Night Data Transfer Tables
+
+Full-night all-alert deliveries use the same processed table names as smoke deliveries, but are written under:
+
+- `data/processed/data_transfer/full_night/<run_id>/alerts.parquet`
+- `data/processed/data_transfer/full_night/<run_id>/objects.parquet`
+- `data/processed/data_transfer/full_night/<run_id>/forced_photometry.parquet` when available
+- `data/processed/data_transfer/full_night/<run_id>/classifications.parquet` when available
+- `data/processed/data_transfer/full_night/<run_id>/lightcurve_features.parquet` when available
+- `data/processed/data_transfer/full_night/<run_id>/nightly_summary.parquet`
+- `data/processed/data_transfer/full_night/<run_id>/manifest.json`
+
+Full-night metadata is sourced from `configs/data_transfer_topics.yaml`. A manifest may record `full_night_complete = true` only for `scope = full_night_all_alerts`; validation still gates any scientific completeness claim through `completeness_claim_allowed`.

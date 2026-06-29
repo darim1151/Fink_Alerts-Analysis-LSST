@@ -1,0 +1,1953 @@
+[
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [],
+    "parameters": [],
+    "path": "/api/v1/blocks",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve block definition"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "Right Ascension, in decimal degree.",
+        "in": "query",
+        "name": "ra",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Declination, in decimal degree.",
+        "in": "query",
+        "name": "dec",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Conesearch radius in arcsec. Maximum is 18,000 arcseconds (5 degrees).",
+        "in": "query",
+        "name": "radius",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Maximal number of alerts to return. Default is 1000.",
+        "in": "query",
+        "name": "n",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is 2025-09-06 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Time window in days, may be used instead of stopdate. It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period.",
+        "in": "query",
+        "name": "window",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "When filtering by time, you can choose to filter alerts that had their first emission within those dates (within), or that appeared during those dates irrespective of their first variation time (across). Default is `within`",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Right Ascension, in decimal degree.",
+        "in": "query",
+        "name": "ra",
+        "type": "string"
+      },
+      {
+        "description": "Declination, in decimal degree.",
+        "in": "query",
+        "name": "dec",
+        "type": "string"
+      },
+      {
+        "description": "Conesearch radius in arcsec. Maximum is 18,000 arcseconds (5 degrees).",
+        "in": "query",
+        "name": "radius",
+        "type": "string"
+      },
+      {
+        "description": "Maximal number of alerts to return. Default is 1000.",
+        "in": "query",
+        "name": "n",
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is 2025-09-06 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "type": "string"
+      },
+      {
+        "description": "Time window in days, may be used instead of stopdate. It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period.",
+        "in": "query",
+        "name": "window",
+        "type": "string"
+      },
+      {
+        "description": "When filtering by time, you can choose to filter alerts that had their first emission within those dates (within), or that appeared during those dates irrespective of their first variation time (across). Default is `within`",
+        "in": "query",
+        "name": "kind",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/conesearch",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve lightcurve data from the Fink/LSST database based on coordinates"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "Right Ascension, in decimal degree.",
+        "in": "query",
+        "name": "ra",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Declination, in decimal degree.",
+        "in": "query",
+        "name": "dec",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Conesearch radius in arcsec. Maximum is 18,000 arcseconds (5 degrees).",
+        "in": "query",
+        "name": "radius",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Maximal number of alerts to return. Default is 1000.",
+        "in": "query",
+        "name": "n",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is 2025-09-06 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Time window in days, may be used instead of stopdate. It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period.",
+        "in": "query",
+        "name": "window",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "When filtering by time, you can choose to filter alerts that had their first emission within those dates (within), or that appeared during those dates irrespective of their first variation time (across). Default is `within`",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Right Ascension, in decimal degree.",
+        "in": "query",
+        "name": "ra",
+        "type": "string"
+      },
+      {
+        "description": "Declination, in decimal degree.",
+        "in": "query",
+        "name": "dec",
+        "type": "string"
+      },
+      {
+        "description": "Conesearch radius in arcsec. Maximum is 18,000 arcseconds (5 degrees).",
+        "in": "query",
+        "name": "radius",
+        "type": "string"
+      },
+      {
+        "description": "Maximal number of alerts to return. Default is 1000.",
+        "in": "query",
+        "name": "n",
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is 2025-09-06 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period. Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "type": "string"
+      },
+      {
+        "description": "Time window in days, may be used instead of stopdate. It restricts the search to alerts whose first detection was within the specified range of dates and NOT all transients seen during this period.",
+        "in": "query",
+        "name": "window",
+        "type": "string"
+      },
+      {
+        "description": "When filtering by time, you can choose to filter alerts that had their first emission within those dates (within), or that appeared during those dates irrespective of their first variation time (across). Default is `within`",
+        "in": "query",
+        "name": "kind",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/conesearch"
+        }
+      }
+    ],
+    "path": "/api/v1/conesearch",
+    "request_body_schema": {
+      "$ref": "#/definitions/conesearch"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/conesearch"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve lightcurve data from the Fink/LSST database based on coordinates"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "diaSource ID (long integer) of the alert.",
+        "in": "query",
+        "name": "diaSourceId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Science, Template, or Difference. For output-format=array, you can also specify `kind: All` to get the 3 cutouts.",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "PNG[default], FITS, array",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stretch function to be applied. Available: sigmoid[default], linear, sqrt, power, log.",
+        "in": "query",
+        "name": "stretch",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Valid matplotlib colormap name (see matplotlib.cm). Default is grayscale.",
+        "in": "query",
+        "name": "colormap",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of minimum cut level. Default is 0.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmin",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of maximum cut level. Default is 99.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmax",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Convolve the image with a kernel (gauss or box). If not specified, no kernel is applied.",
+        "in": "query",
+        "name": "convolution_kernel",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "diaSource ID (long integer) of the alert.",
+        "in": "query",
+        "name": "diaSourceId",
+        "type": "string"
+      },
+      {
+        "description": "Science, Template, or Difference. For output-format=array, you can also specify `kind: All` to get the 3 cutouts.",
+        "in": "query",
+        "name": "kind",
+        "type": "string"
+      },
+      {
+        "description": "PNG[default], FITS, array",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "description": "Stretch function to be applied. Available: sigmoid[default], linear, sqrt, power, log.",
+        "in": "query",
+        "name": "stretch",
+        "type": "string"
+      },
+      {
+        "description": "Valid matplotlib colormap name (see matplotlib.cm). Default is grayscale.",
+        "in": "query",
+        "name": "colormap",
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of minimum cut level. Default is 0.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmin",
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of maximum cut level. Default is 99.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmax",
+        "type": "string"
+      },
+      {
+        "description": "Convolve the image with a kernel (gauss or box). If not specified, no kernel is applied.",
+        "in": "query",
+        "name": "convolution_kernel",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/cutouts",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve cutout data from the Fink/Rubin datalake"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "diaSource ID (long integer) of the alert.",
+        "in": "query",
+        "name": "diaSourceId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Science, Template, or Difference. For output-format=array, you can also specify `kind: All` to get the 3 cutouts.",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "PNG[default], FITS, array",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stretch function to be applied. Available: sigmoid[default], linear, sqrt, power, log.",
+        "in": "query",
+        "name": "stretch",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Valid matplotlib colormap name (see matplotlib.cm). Default is grayscale.",
+        "in": "query",
+        "name": "colormap",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of minimum cut level. Default is 0.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmin",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of maximum cut level. Default is 99.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmax",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Convolve the image with a kernel (gauss or box). If not specified, no kernel is applied.",
+        "in": "query",
+        "name": "convolution_kernel",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "diaSource ID (long integer) of the alert.",
+        "in": "query",
+        "name": "diaSourceId",
+        "type": "string"
+      },
+      {
+        "description": "Science, Template, or Difference. For output-format=array, you can also specify `kind: All` to get the 3 cutouts.",
+        "in": "query",
+        "name": "kind",
+        "type": "string"
+      },
+      {
+        "description": "PNG[default], FITS, array",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "description": "Stretch function to be applied. Available: sigmoid[default], linear, sqrt, power, log.",
+        "in": "query",
+        "name": "stretch",
+        "type": "string"
+      },
+      {
+        "description": "Valid matplotlib colormap name (see matplotlib.cm). Default is grayscale.",
+        "in": "query",
+        "name": "colormap",
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of minimum cut level. Default is 0.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmin",
+        "type": "string"
+      },
+      {
+        "description": "The percentile value used to determine the pixel value of maximum cut level. Default is 99.5. No effect for sigmoid.",
+        "in": "query",
+        "name": "pmax",
+        "type": "string"
+      },
+      {
+        "description": "Convolve the image with a kernel (gauss or box). If not specified, no kernel is applied.",
+        "in": "query",
+        "name": "convolution_kernel",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/cutouts"
+        }
+      }
+    ],
+    "path": "/api/v1/cutouts",
+    "request_body_schema": {
+      "$ref": "#/definitions/cutouts"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/cutouts"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve cutout data from the Fink/Rubin datalake"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/fp",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve forced photometry data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band,r:diaObjectId'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/fp"
+        }
+      }
+    ],
+    "path": "/api/v1/fp",
+    "request_body_schema": {
+      "$ref": "#/definitions/fp"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/fp"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve forced photometry data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID, or a comma-separated list of object ID, e.g. \"396895411240977\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:firstDiaSourceMjdTai,r:nDiaSources,r:g_psfFluxMax'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID, or a comma-separated list of object ID, e.g. \"396895411240977\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:firstDiaSourceMjdTai,r:nDiaSources,r:g_psfFluxMax'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/objects",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve object (aggregated) data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID, or a comma-separated list of object ID, e.g. \"396895411240977\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:firstDiaSourceMjdTai,r:nDiaSources,r:g_psfFluxMax'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID, or a comma-separated list of object ID, e.g. \"396895411240977\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:firstDiaSourceMjdTai,r:nDiaSources,r:g_psfFluxMax'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/objects"
+        }
+      }
+    ],
+    "path": "/api/v1/objects",
+    "request_body_schema": {
+      "$ref": "#/definitions/objects"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/objects"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve object (aggregated) data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "Resolver among: `simbad`, `ssodnet`, `tns`",
+        "in": "query",
+        "name": "resolver",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Astronomical object name or ID (if reverse is True) to resolve.",
+        "in": "query",
+        "name": "name_or_id",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If True, resolve LSST diaObjectId instead. Default is False.",
+        "in": "query",
+        "name": "reverse",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Maximum number of match to return. Default is 10.",
+        "in": "query",
+        "name": "nmax",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Resolver among: `simbad`, `ssodnet`, `tns`",
+        "in": "query",
+        "name": "resolver",
+        "type": "string"
+      },
+      {
+        "description": "Astronomical object name or ID (if reverse is True) to resolve.",
+        "in": "query",
+        "name": "name_or_id",
+        "type": "string"
+      },
+      {
+        "description": "If True, resolve LSST diaObjectId instead. Default is False.",
+        "in": "query",
+        "name": "reverse",
+        "type": "string"
+      },
+      {
+        "description": "Maximum number of match to return. Default is 10.",
+        "in": "query",
+        "name": "nmax",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/resolver",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": null
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "Resolver among: `simbad`, `ssodnet`, `tns`",
+        "in": "query",
+        "name": "resolver",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Astronomical object name or ID (if reverse is True) to resolve.",
+        "in": "query",
+        "name": "name_or_id",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If True, resolve LSST diaObjectId instead. Default is False.",
+        "in": "query",
+        "name": "reverse",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Maximum number of match to return. Default is 10.",
+        "in": "query",
+        "name": "nmax",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Resolver among: `simbad`, `ssodnet`, `tns`",
+        "in": "query",
+        "name": "resolver",
+        "type": "string"
+      },
+      {
+        "description": "Astronomical object name or ID (if reverse is True) to resolve.",
+        "in": "query",
+        "name": "name_or_id",
+        "type": "string"
+      },
+      {
+        "description": "If True, resolve LSST diaObjectId instead. Default is False.",
+        "in": "query",
+        "name": "reverse",
+        "type": "string"
+      },
+      {
+        "description": "Maximum number of match to return. Default is 10.",
+        "in": "query",
+        "name": "nmax",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/resolver"
+        }
+      }
+    ],
+    "path": "/api/v1/resolver",
+    "request_body_schema": {
+      "$ref": "#/definitions/resolver"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/resolver"
+      }
+    ],
+    "response_content_types": [],
+    "summary": null
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "Endpoint name",
+        "in": "query",
+        "name": "endpoint",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "LSST major version. Default is latest.",
+        "in": "query",
+        "name": "major_version",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "LSST minor version. Default is latest.",
+        "in": "query",
+        "name": "minor_version",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Endpoint name",
+        "in": "query",
+        "name": "endpoint",
+        "type": "string"
+      },
+      {
+        "description": "LSST major version. Default is latest.",
+        "in": "query",
+        "name": "major_version",
+        "type": "string"
+      },
+      {
+        "description": "LSST minor version. Default is latest.",
+        "in": "query",
+        "name": "minor_version",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/schema",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve the data schema for a given endpoint for Fink/Rubin API"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "Endpoint name",
+        "in": "query",
+        "name": "endpoint",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "LSST major version. Default is latest.",
+        "in": "query",
+        "name": "major_version",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "LSST minor version. Default is latest.",
+        "in": "query",
+        "name": "minor_version",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Endpoint name",
+        "in": "query",
+        "name": "endpoint",
+        "type": "string"
+      },
+      {
+        "description": "LSST major version. Default is latest.",
+        "in": "query",
+        "name": "major_version",
+        "type": "string"
+      },
+      {
+        "description": "LSST minor version. Default is latest.",
+        "in": "query",
+        "name": "minor_version",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/schema"
+        }
+      }
+    ],
+    "path": "/api/v1/schema",
+    "request_body_schema": {
+      "$ref": "#/definitions/schema"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/schema"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve the data schema for a given endpoint for Fink/Rubin API"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "LIGO/Virgo probability sky maps, as gzipped FITS (bayestar.fits.gz). Not compatible with `event_name`.",
+        "in": "query",
+        "name": "file",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If provided, directly query GraceDB with the `event_name`. Not compatible with the argument `file`.",
+        "in": "query",
+        "name": "event_name",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "GW credible region threshold to look for. Note that the values in the resulting credible level map vary inversely with probability density: the most probable pixel is assigned to the credible level 0.0, and the least likely pixel is assigned the credible level 1.0.",
+        "in": "query",
+        "name": "credible_level",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search before the event. Default is 1, max is 7.",
+        "in": "query",
+        "name": "n_day_before",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search after the event. Default is 6, max is 14.",
+        "in": "query",
+        "name": "n_day_after",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "LIGO/Virgo probability sky maps, as gzipped FITS (bayestar.fits.gz). Not compatible with `event_name`.",
+        "in": "query",
+        "name": "file",
+        "type": "string"
+      },
+      {
+        "description": "If provided, directly query GraceDB with the `event_name`. Not compatible with the argument `file`.",
+        "in": "query",
+        "name": "event_name",
+        "type": "string"
+      },
+      {
+        "description": "GW credible region threshold to look for. Note that the values in the resulting credible level map vary inversely with probability density: the most probable pixel is assigned to the credible level 0.0, and the least likely pixel is assigned the credible level 1.0.",
+        "in": "query",
+        "name": "credible_level",
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search before the event. Default is 1, max is 7.",
+        "in": "query",
+        "name": "n_day_before",
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search after the event. Default is 6, max is 14.",
+        "in": "query",
+        "name": "n_day_after",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/skymap",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Return Fink/LSST alerts within a GW skymap, within [-1 day, +6 days] for the event"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "LIGO/Virgo probability sky maps, as gzipped FITS (bayestar.fits.gz). Not compatible with `event_name`.",
+        "in": "query",
+        "name": "file",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If provided, directly query GraceDB with the `event_name`. Not compatible with the argument `file`.",
+        "in": "query",
+        "name": "event_name",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "GW credible region threshold to look for. Note that the values in the resulting credible level map vary inversely with probability density: the most probable pixel is assigned to the credible level 0.0, and the least likely pixel is assigned the credible level 1.0.",
+        "in": "query",
+        "name": "credible_level",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search before the event. Default is 1, max is 7.",
+        "in": "query",
+        "name": "n_day_before",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search after the event. Default is 6, max is 14.",
+        "in": "query",
+        "name": "n_day_after",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "LIGO/Virgo probability sky maps, as gzipped FITS (bayestar.fits.gz). Not compatible with `event_name`.",
+        "in": "query",
+        "name": "file",
+        "type": "string"
+      },
+      {
+        "description": "If provided, directly query GraceDB with the `event_name`. Not compatible with the argument `file`.",
+        "in": "query",
+        "name": "event_name",
+        "type": "string"
+      },
+      {
+        "description": "GW credible region threshold to look for. Note that the values in the resulting credible level map vary inversely with probability density: the most probable pixel is assigned to the credible level 0.0, and the least likely pixel is assigned the credible level 1.0.",
+        "in": "query",
+        "name": "credible_level",
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search before the event. Default is 1, max is 7.",
+        "in": "query",
+        "name": "n_day_before",
+        "type": "string"
+      },
+      {
+        "description": "Number of day(s) to search after the event. Default is 6, max is 14.",
+        "in": "query",
+        "name": "n_day_after",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/skymap"
+        }
+      }
+    ],
+    "path": "/api/v1/skymap",
+    "request_body_schema": {
+      "$ref": "#/definitions/skymap"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/skymap"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Return Fink/LSST alerts within a GW skymap, within [-1 day, +6 days] for the event"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If set, only transfer data for the corresponding observation at time midpointMjdTai (float). This is particularly useful for performance if you are only interested in the data for one source. Note that it does not work if diaObjectId is a comma-separated list. If not specified, transfer data for all sources.",
+        "in": "query",
+        "name": "midpointMjdTai",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "If set, only transfer data for the corresponding observation at time midpointMjdTai (float). This is particularly useful for performance if you are only interested in the data for one source. Note that it does not work if diaObjectId is a comma-separated list. If not specified, transfer data for all sources.",
+        "in": "query",
+        "name": "midpointMjdTai",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/sources",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve lightcurve data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "If set, only transfer data for the corresponding observation at time midpointMjdTai (float). This is particularly useful for performance if you are only interested in the data for one source. Note that it does not work if diaObjectId is a comma-separated list. If not specified, transfer data for all sources.",
+        "in": "query",
+        "name": "midpointMjdTai",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "single Rubin Object ID as STRING, or a comma-separated list of object ID, e.g. \"169298433216610349\"",
+        "in": "query",
+        "name": "diaObjectId",
+        "type": "string"
+      },
+      {
+        "description": "If set, only transfer data for the corresponding observation at time midpointMjdTai (float). This is particularly useful for performance if you are only interested in the data for one source. Note that it does not work if diaObjectId is a comma-separated list. If not specified, transfer data for all sources.",
+        "in": "query",
+        "name": "midpointMjdTai",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:psfFlux,r:band'. If not specified, transfer all columns (slow).",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/sources"
+        }
+      }
+    ],
+    "path": "/api/v1/sources",
+    "request_body_schema": {
+      "$ref": "#/definitions/sources"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/sources"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve lightcurve data from the Fink/LSST database based on their name"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "IAU number of the object, or designation of the object IF the number does not exist yet. Packed form is allowed (e.g. K15W16Q). Example for numbers: 8467 (asteroid) or 10P (comet). Example for designations: 2010JO69 (asteroid) or C/2020V2 (comet). You can also give a list of object names (comma-separated).",
+        "in": "query",
+        "name": "n_or_d",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Attach ephemerides provided by the Miriade service (https://ssp.imcce.fr/webservices/miriade/api/ephemcc/), as extra columns in the results.",
+        "in": "query",
+        "name": "withEphem",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Return the residuals `obs - model` using the sHG1G2 phase curve model. Work only for a single object query (`n_or_d` cannot be a list).",
+        "in": "query",
+        "name": "withResiduals",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:scienceFlux,r:band,r:ra,r:dec'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "IAU number of the object, or designation of the object IF the number does not exist yet. Packed form is allowed (e.g. K15W16Q). Example for numbers: 8467 (asteroid) or 10P (comet). Example for designations: 2010JO69 (asteroid) or C/2020V2 (comet). You can also give a list of object names (comma-separated).",
+        "in": "query",
+        "name": "n_or_d",
+        "type": "string"
+      },
+      {
+        "description": "Attach ephemerides provided by the Miriade service (https://ssp.imcce.fr/webservices/miriade/api/ephemcc/), as extra columns in the results.",
+        "in": "query",
+        "name": "withEphem",
+        "type": "string"
+      },
+      {
+        "description": "Return the residuals `obs - model` using the sHG1G2 phase curve model. Work only for a single object query (`n_or_d` cannot be a list).",
+        "in": "query",
+        "name": "withResiduals",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:scienceFlux,r:band,r:ra,r:dec'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/sso",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve Solar System object data from Fink/Rubin based on their number or designation"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "IAU number of the object, or designation of the object IF the number does not exist yet. Packed form is allowed (e.g. K15W16Q). Example for numbers: 8467 (asteroid) or 10P (comet). Example for designations: 2010JO69 (asteroid) or C/2020V2 (comet). You can also give a list of object names (comma-separated).",
+        "in": "query",
+        "name": "n_or_d",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Attach ephemerides provided by the Miriade service (https://ssp.imcce.fr/webservices/miriade/api/ephemcc/), as extra columns in the results.",
+        "in": "query",
+        "name": "withEphem",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Return the residuals `obs - model` using the sHG1G2 phase curve model. Work only for a single object query (`n_or_d` cannot be a list).",
+        "in": "query",
+        "name": "withResiduals",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:scienceFlux,r:band,r:ra,r:dec'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "IAU number of the object, or designation of the object IF the number does not exist yet. Packed form is allowed (e.g. K15W16Q). Example for numbers: 8467 (asteroid) or 10P (comet). Example for designations: 2010JO69 (asteroid) or C/2020V2 (comet). You can also give a list of object names (comma-separated).",
+        "in": "query",
+        "name": "n_or_d",
+        "type": "string"
+      },
+      {
+        "description": "Attach ephemerides provided by the Miriade service (https://ssp.imcce.fr/webservices/miriade/api/ephemcc/), as extra columns in the results.",
+        "in": "query",
+        "name": "withEphem",
+        "type": "string"
+      },
+      {
+        "description": "Return the residuals `obs - model` using the sHG1G2 phase curve model. Work only for a single object query (`n_or_d` cannot be a list).",
+        "in": "query",
+        "name": "withResiduals",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:midpointMjdTai,r:scienceFlux,r:band,r:ra,r:dec'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/sso"
+        }
+      }
+    ],
+    "path": "/api/v1/sso",
+    "request_body_schema": {
+      "$ref": "#/definitions/sso"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/sso"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve Solar System object data from Fink/Rubin based on their number or designation"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "Observing date. This can be either a given night (YYYYMMDD), month (YYYYMM), year (YYYY), or eveything (empty string).",
+        "in": "query",
+        "name": "date",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'f:alerts,f:night'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Observing date. This can be either a given night (YYYYMMDD), month (YYYYMM), year (YYYY), or eveything (empty string).",
+        "in": "query",
+        "name": "date",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'f:alerts,f:night'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/statistics",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Get statistics about Fink and the Rubin alert stream"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "Observing date. This can be either a given night (YYYYMMDD), month (YYYYMM), year (YYYY), or eveything (empty string).",
+        "in": "query",
+        "name": "date",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'f:alerts,f:night'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Observing date. This can be either a given night (YYYYMMDD), month (YYYYMM), year (YYYY), or eveything (empty string).",
+        "in": "query",
+        "name": "date",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'f:alerts,f:night'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/stats"
+        }
+      }
+    ],
+    "path": "/api/v1/statistics",
+    "request_body_schema": {
+      "$ref": "#/definitions/stats"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/stats"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Get statistics about Fink and the Rubin alert stream"
+  },
+  {
+    "description": null,
+    "method": "GET",
+    "optional_parameters": [
+      {
+        "description": "Fink tags based on user-defined filters. See https://api.lsst.fink-portal.org/api/v1/tags for available tags.",
+        "in": "query",
+        "name": "tag",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Last N alerts to transfer between stopping date and starting date. Default is 100.",
+        "in": "query",
+        "name": "n",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). Default is 2026-01-01 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:psfFlux,r:midpointMjdTai,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Fink tags based on user-defined filters. See https://api.lsst.fink-portal.org/api/v1/tags for available tags.",
+        "in": "query",
+        "name": "tag",
+        "type": "string"
+      },
+      {
+        "description": "Last N alerts to transfer between stopping date and starting date. Default is 100.",
+        "in": "query",
+        "name": "n",
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). Default is 2026-01-01 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:psfFlux,r:midpointMjdTai,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      }
+    ],
+    "path": "/api/v1/tags",
+    "request_body_schema": null,
+    "required_parameters": [],
+    "response_content_types": [],
+    "summary": "Retrieve alert data from the Fink/LSST database based on their tag"
+  },
+  {
+    "description": null,
+    "method": "POST",
+    "optional_parameters": [
+      {
+        "description": "Fink tags based on user-defined filters. See https://api.lsst.fink-portal.org/api/v1/tags for available tags.",
+        "in": "query",
+        "name": "tag",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Last N alerts to transfer between stopping date and starting date. Default is 100.",
+        "in": "query",
+        "name": "n",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). Default is 2026-01-01 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:psfFlux,r:midpointMjdTai,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "required": false,
+        "type": "string"
+      }
+    ],
+    "parameters": [
+      {
+        "description": "Fink tags based on user-defined filters. See https://api.lsst.fink-portal.org/api/v1/tags for available tags.",
+        "in": "query",
+        "name": "tag",
+        "type": "string"
+      },
+      {
+        "description": "Last N alerts to transfer between stopping date and starting date. Default is 100.",
+        "in": "query",
+        "name": "n",
+        "type": "string"
+      },
+      {
+        "description": "Starting date in UTC (iso, jd, or MJD). Default is 2026-01-01 00:00:00",
+        "in": "query",
+        "name": "startdate",
+        "type": "string"
+      },
+      {
+        "description": "Stopping date in UTC (iso, jd, or MJD). Default is now.",
+        "in": "query",
+        "name": "stopdate",
+        "type": "string"
+      },
+      {
+        "description": "Comma-separated data columns to transfer, e.g. 'r:psfFlux,r:midpointMjdTai,r:diaObjectId'. If not specified, transfer all columns.",
+        "in": "query",
+        "name": "columns",
+        "type": "string"
+      },
+      {
+        "description": "Output format among json[default], csv, parquet, votable.",
+        "in": "query",
+        "name": "output-format",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "schema": {
+          "$ref": "#/definitions/tags"
+        }
+      }
+    ],
+    "path": "/api/v1/tags",
+    "request_body_schema": {
+      "$ref": "#/definitions/tags"
+    },
+    "required_parameters": [
+      {
+        "description": null,
+        "in": "body",
+        "name": "payload",
+        "required": true,
+        "type": "#/definitions/tags"
+      }
+    ],
+    "response_content_types": [],
+    "summary": "Retrieve alert data from the Fink/LSST database based on their tag"
+  }
+]

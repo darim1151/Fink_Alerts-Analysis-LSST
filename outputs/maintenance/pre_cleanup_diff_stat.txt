@@ -1,0 +1,15 @@
+ README.md                                         |  38 +-
+ docs/DATA_MODEL.md                                |  45 ++-
+ docs/DATA_TRANSFER_DELIVERY_DROPZONE.md           |  24 +-
+ docs/DATA_TRANSFER_PLAN.md                        |  74 +++-
+ docs/FINK_ACCESS_NOTES.md                         |  21 +-
+ scripts/report_data_transfer_next_action.py       |  38 +-
+ scripts/run_data_transfer_smoke_ingestion.py      | 177 +++++++--
+ scripts/validate_data_transfer_delivery.py        |  96 +++--
+ src/fink_lsst/bulk_transfer/client_probe.py       |  32 +-
+ src/fink_lsst/bulk_transfer/ingest.py             | 416 ++++++++++++++++++++--
+ src/fink_lsst/bulk_transfer/output_inspector.py   |  82 ++++-
+ src/fink_lsst/bulk_transfer/readiness_decision.py |  51 ++-
+ src/fink_lsst/bulk_transfer/reporting.py          |  72 +++-
+ src/fink_lsst/bulk_transfer/validation.py         | 316 +++++++++++++++-
+ 14 files changed, 1328 insertions(+), 154 deletions(-)

@@ -1,0 +1,51 @@
+version: 1
+topics:
+- topic: ftransfer_lsst_2026-06-24_657339
+  scope: tag_filtered_smoke_delivery
+  survey: lsst
+  utc_start: '2026-02-25'
+  utc_stop: '2026-02-26'
+  all_alerts: false
+  filter: in_tns
+  content_type: Light static packet
+  cutouts_requested: false
+  fits_or_images_requested: false
+  portal_estimate_alerts: 4290
+  observed_alerts: 8731
+  kafka_lag_zero: true
+  truncation_warning: false
+  date_window_explained: true
+  raw_delivery_dir: data/raw/data_transfer/smoke_delivery/ftransfer_lsst_2026-06-24_657339
+  created_at_utc: '2026-06-24T08:59:34Z'
+  notes: Real tag-filtered smoke delivery. Useful for ingestion validation; not a
+    full-night all-alert census.
+- topic: ftransfer_lsst_2026-06-27_38507
+  scope: full_week_full_packet
+  survey: lsst
+  utc_start: '2026-02-25'
+  utc_stop: '2026-03-04'
+  startdate: '2026-02-25'
+  stopdate: '2026-03-04'
+  content: Full packet
+  content_type: Full packet
+  packet_type: full
+  filters: []
+  filter: null
+  is_all_alert: true
+  all_alerts: true
+  expected_nights:
+  - '2026-02-25'
+  - '2026-02-26'
+  - '2026-02-27'
+  - '2026-02-28'
+  - '2026-03-01'
+  - '2026-03-02'
+  - '2026-03-03'
+  claim_policy:
+    week_complete_default: unresolved
+    allow_completeness_only_after_validation: true
+  raw_delivery_dir: data/raw/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-06-27_38507
+  processed_dir_template: data/processed/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/<run_id>
+  output_dir_template: outputs/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/<run_id>
+  created_at_utc: '2026-06-27T21:56:14.476591+00:00'
+  notes: First full-week full-packet LSST Data Transfer request

@@ -83,6 +83,20 @@ For the first operational test, use the smoke request artifacts:
 
 If the portal only supports whole-night delivery, stop and ask before submitting.
 
+## Real Smoke Delivery Status
+
+Fink Data Transfer access is now working for a bounded smoke delivery:
+
+- topic: `ftransfer_lsst_2026-06-24_657339`
+- survey: `lsst`
+- UTC window: `2026-02-25` to `2026-02-26`
+- filter: `in_tns`
+- content: `Light static packet`
+- raw files: `20` Parquet files
+- raw rows: `8731`
+
+This is a tag-filtered smoke delivery. It is useful for validating the transfer, ingestion, schema inventory, nested-field handling, and first diagnostics. It is not a complete full-night all-alert product.
+
 ## Delivery Storage
 
 When real files are delivered manually, place them under:
@@ -104,18 +118,37 @@ The inspector supports empty directories and tiny local fixtures. It classifies 
 After delivery files exist:
 
 ```bash
-python scripts/ingest_data_transfer_delivery.py
+python scripts/inspect_data_transfer_delivery.py
 python scripts/run_data_transfer_smoke_ingestion.py
+python scripts/validate_data_transfer_delivery.py
+```
+
+The generalized Checkpoint 7 pipeline can also consume any topic recorded in `configs/data_transfer_topics.yaml`:
+
+```bash
+python scripts/run_data_transfer_pipeline.py --scope tag_filtered_smoke_delivery
+python scripts/run_data_transfer_pipeline.py --scope full_night_all_alerts --topic TOPIC
 ```
 
 Processed outputs are written under:
 
-- `data/processed/data_transfer/<run_id>/alerts.parquet`
-- `data/processed/data_transfer/<run_id>/objects.parquet`
-- `data/processed/data_transfer/<run_id>/forced_photometry.parquet` when available
-- `data/processed/data_transfer/<run_id>/classification_context.parquet` when available
-- `data/processed/data_transfer/<run_id>/nightly_summary.parquet`
-- `data/processed/data_transfer/<run_id>/manifest.json`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/alerts.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/objects.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/forced_photometry.parquet` when available
+- `data/processed/data_transfer/smoke_delivery/<run_id>/classifications.parquet` when available
+- `data/processed/data_transfer/smoke_delivery/<run_id>/lightcurve_features.parquet` when `lc_features` can be expanded
+- `data/processed/data_transfer/smoke_delivery/<run_id>/nightly_summary.parquet`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/manifest.json`
+- `data/processed/data_transfer/smoke_delivery/<run_id>/nested_conversion_report.json`
+
+Raw reports and diagnostics are written under:
+
+- `outputs/data_transfer/smoke_delivery/<run_id>/RAW_FIELD_INVENTORY.md`
+- `outputs/data_transfer/smoke_delivery/<run_id>/VALIDATION_SUMMARY.md`
+- `outputs/data_transfer/smoke_delivery/<run_id>/SMOKE_DIAGNOSTICS.md`
+- `outputs/data_transfer/smoke_delivery/<run_id>/figures/`
+
+The ingestion layer preserves raw files unchanged. Nested fields such as `lc_features`, `clf`, `xm`, `pred`, and `misc` are JSON-sanitized before processed Parquet writes. `lc_features` is also preserved as `lc_features_json` and expanded into `lightcurve_features.parquet` where possible.
 
 ## Validation Criteria
 
@@ -133,6 +166,51 @@ Validation refuses a complete-night claim if:
 - all-alert scope is not confirmed
 - denominator comparison is unavailable or incompatible unless delivery metadata supplies complete counts
 - duplicate/source integrity is bad
+
+For the current smoke delivery, validation is expected to block the complete-night claim because the scope is `tag_filtered_smoke_delivery`.
+
+For a recorded full-night delivery, validation allows a complete-night claim only when the registry and local evidence support it: all-alert/no-filter scope, nonzero raw rows, processed alerts, no hard validation failures, no recorded nonzero Kafka lag, no truncation warning, and acceptable or explicitly explained date-window behavior.
+
+## First Full-Night Workflow
+
+Prepare the request artifacts:
+
+```bash
+python scripts/prepare_full_night_transfer_request.py
+```
+
+After manual portal topic creation, record the topic in:
+
+```text
+configs/data_transfer_topics.yaml
+```
+
+Then print the download command and run the pipeline:
+
+```bash
+python scripts/print_data_transfer_download_command.py --topic TOPIC
+python scripts/run_full_night_ingestion.py --topic TOPIC
+```
+
+See `docs/FULL_NIGHT_TRANSFER_WORKFLOW.md` for the Checkpoint 7 checklist.
+
+## Full-Week Full-Packet Readiness
+
+Checkpoint 8A adds pre-download controls for the manually submitted full-week full-packet topic `ftransfer_lsst_2026-06-27_38507`.
+
+Use:
+
+```bash
+python scripts/register_data_transfer_topic.py --scope full_week_full_packet --survey lsst --topic ftransfer_lsst_2026-06-27_38507 --startdate 2026-02-25 --stopdate 2026-03-04 --content "Full packet" --all-alert
+python scripts/preflight_full_packet_delivery.py --topic ftransfer_lsst_2026-06-27_38507
+python scripts/print_data_transfer_download_command.py --topic ftransfer_lsst_2026-06-27_38507
+python scripts/summarize_download_progress.py --raw-dir data/raw/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-06-27_38507 --topic ftransfer_lsst_2026-06-27_38507
+python scripts/inspect_full_packet_delivery.py --topic ftransfer_lsst_2026-06-27_38507
+```
+
+Completeness remains unresolved until validation. Do not ingest heavy full-packet fields until raw schema inspection establishes a storage policy.
+
+If the full-packet download is interrupted or uncertain, run `scripts/triage_full_packet_download.py` and `scripts/recommend_download_action.py` before ingestion. The guarded full-week pipeline refuses partial or active raw data unless `--allow-partial` is explicitly supplied.
 
 ## Difference From ANTARES And REST Chunking
 

@@ -2,13 +2,14 @@
 
 Local-first research code for exploring public Fink Broker access patterns for LSST/Rubin alert analysis.
 
-This repository is intentionally small at this stage. It is an architecture, access reconnaissance, and smoke-testing foundation, not a production science pipeline. The code uses public/no-login Fink REST API access where possible and avoids Kafka, Data Transfer, Livestream, Spark, privileged accounts, paid services, and large downloads.
+This repository is intentionally small at this stage. It is an architecture, access reconnaissance, and smoke-testing foundation, not a production science pipeline. The code uses public/no-login Fink REST API access where possible and now includes a hardened local ingestion path for manually delivered Fink Data Transfer smoke files. It still avoids Livestream, Spark job execution, privileged secrets in-repo, paid services, cutouts/FITS/images, and unconfirmed large downloads.
 
 ## Scope
 
 - Inspect public Fink REST API reachability and schemas.
 - Save small schema and smoke-test artifacts under `data/` or `outputs/`.
 - Build reusable utilities for configuration, local storage, schema summaries, validation, summaries, and lightweight plotting.
+- Ingest real Data Transfer smoke deliveries locally while preserving raw files and sanitizing nested scientific fields.
 - Keep room for later historical ingestion, classification analysis, science notebooks, and ANTARES comparison without copying ANTARES-specific architecture.
 
 ## Setup
@@ -48,8 +49,11 @@ python scripts/install_fink_client_helper.py
 python scripts/prepare_data_transfer_request.py
 python scripts/probe_fink_client_capabilities.py
 python scripts/inspect_data_transfer_delivery.py
+python scripts/run_data_transfer_smoke_ingestion.py
+python scripts/validate_data_transfer_delivery.py
 python scripts/write_registration_checklist.py
 python scripts/prepare_data_transfer_smoke_request.py
+python scripts/prepare_full_night_transfer_request.py
 python scripts/report_data_transfer_next_action.py
 jupyter lab
 ```
@@ -86,12 +90,14 @@ Open:
 - `notebooks/03_bounded_public_rest_extraction.ipynb`
 - `notebooks/04_full_night_feasibility.ipynb`
 - `notebooks/05_data_transfer_readiness.ipynb`
+- `notebooks/06_data_transfer_smoke_ingestion.ipynb`
 
 The first notebook performs the same tiny public API checks and saves fixtures. The second notebook works from saved fixtures and does not require live API access.
 The third notebook summarizes minimal real-ID sample ingestion and validation; it is not a full-night science analysis.
 The fourth notebook reads the latest bounded extraction artifacts and summarizes endpoint capabilities, normalized table shapes, validation warnings, and feasibility conclusions. It does not make live API calls.
 The fifth notebook reads the latest full-night feasibility run and shows the UTC target window, capability diagnosis, partition statuses, truncation blocks, denominator accounting, validation, and final REST completeness decision.
 The sixth notebook reads saved Data Transfer readiness artifacts and shows setup status, dry-run request draft, client probe, delivery inspection, and the hybrid REST/Data Transfer architecture.
+The seventh notebook reads saved real smoke-ingestion outputs only: raw field inventory, processed shapes, nested conversion, validation, diagnostics, figures, and next-action interpretation.
 
 ## Inspect Fixtures
 
@@ -107,6 +113,7 @@ python -m json.tool outputs/bounded_extraction/latest_run.json
 python -m json.tool outputs/full_night_feasibility/latest_run.json
 python -m json.tool outputs/data_transfer/setup_status.json
 python -m json.tool outputs/data_transfer/request_drafts/data_transfer_request.json
+python -m json.tool outputs/data_transfer/smoke_delivery/latest_run.json
 ```
 
 ## Configuration
@@ -143,12 +150,24 @@ See `docs/BOUNDED_EXTRACTION.md` for the Checkpoint 2 bounded public REST feasib
 See `docs/FULL_NIGHT_FEASIBILITY.md` for the Checkpoint 3 partitioned REST full-night completeness feasibility workflow.
 See `docs/DATA_TRANSFER_PLAN.md` for the Checkpoint 4 bulk/Data Transfer readiness and hybrid architecture plan.
 See `docs/FINK_DATA_TRANSFER_REGISTRATION.md` and `docs/DATA_TRANSFER_DELIVERY_DROPZONE.md` for Checkpoint 5 registration and smoke-delivery workflow notes.
+See `docs/REAL_DELIVERY_INGESTION.md` for Checkpoint 6 real Data Transfer smoke ingestion, nested-field handling, diagnostics, and completeness limits.
+See `docs/FULL_NIGHT_TRANSFER_WORKFLOW.md` for Checkpoint 7 full-night all-alert preparation, topic registry, download command, ingestion, and validation gates.
+See `docs/FULL_WEEK_FULL_PACKET_WORKFLOW.md` for Checkpoint 8A full-week full-packet preflight, command generation, progress monitoring, and raw-schema inspection.
 
 ## Hybrid Architecture
 
 REST mode supports bounded/candidate extraction, known-ID enrichment, diagnostics, and dashboards.
 
 Data Transfer mode is the planned route for complete nightly alert census, historical bulk extraction, and population-level science after validation.
+
+The first real smoke delivery has been ingested locally:
+
+- topic: `ftransfer_lsst_2026-06-24_657339`
+- raw files: `20` Parquet files
+- raw rows: `8731`
+- scope: `in_tns` tag-filtered light static packet
+
+This proves smoke ingestion and validation, not full-night completeness.
 
 ## Data Transfer Smoke Workflow
 
@@ -171,5 +190,23 @@ After manual portal delivery:
 ```bash
 python scripts/inspect_data_transfer_delivery.py
 python scripts/run_data_transfer_smoke_ingestion.py
+python scripts/validate_data_transfer_delivery.py
 python scripts/report_data_transfer_next_action.py
 ```
+
+## First Full-Night Data Transfer Workflow
+
+Prepare request artifacts without submitting a job:
+
+```bash
+python scripts/prepare_full_night_transfer_request.py
+```
+
+After manual portal topic creation, add the non-secret topic metadata to `configs/data_transfer_topics.yaml`, then run:
+
+```bash
+python scripts/print_data_transfer_download_command.py --topic TOPIC
+python scripts/run_full_night_ingestion.py --topic TOPIC
+```
+
+Full-night completeness is claimed only if validation allows `completeness_claim_allowed`.

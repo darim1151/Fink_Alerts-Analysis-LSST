@@ -1,0 +1,17 @@
+{
+  "b_extragalactic_loose_candidate": "Flag for alerts in Rubin that are extragalactic candidates",
+  "b_extragalactic_near_galaxy_candidate": "Flag for alerts in Rubin that are extragalactic candidates near a known galaxy",
+  "b_good_quality": "Select alerts with good quality for science",
+  "b_is_fading": "Return alerts with fading lightcurve in one filter.",
+  "b_is_new": "Return alerts for which the underlying object is seen for the first time by Rubin",
+  "b_is_rising": "Return alerts with rising lightcurve in one filter.",
+  "b_is_solar_system": "Return alerts that are asteroids according to Rubin",
+  "b_outside_galactic_plane_20_deg": "Return alerts outside the galactic plane (+/- |20| deg)",
+  "b_outside_galactic_plane_5_deg": "Return alerts outside the galactic plane (+/- |5| deg)",
+  "b_xmatched_gaia_star": "Return alerts xmatched to stars with good parallax with Gaia.",
+  "b_xmatched_mangrove": "Return alerts xmatched with a Mangrove galaxy.",
+  "b_xmatched_simbad_galaxy": "Return alerts xmatched to a galaxy with SIMBAD.",
+  "b_xmatched_simbad_unknown": "Return alerts xmatched as unknown or failed with SIMBAD.",
+  "b_xmatched_vsx": "Return alerts xmatched with stellar and non-stellar sources from VSX catalogue.",
+  "b_xmatched_vsx_star": "Return alerts xmatched with stellar sources from VSX catalogue."
+}
