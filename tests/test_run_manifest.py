@@ -144,24 +144,53 @@ def test_manifest_validation_cli_success_and_failure(tmp_path):
     assert bad
 
 
-def test_existing_topic_based_cli_still_parses():
+def test_existing_topic_based_cli_still_parses(tmp_path):
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+version: 1
+topics:
+  - topic: ftransfer_lsst_test_missing
+    scope: full_week_full_packet
+    survey: lsst
+    utc_start: '2026-02-25'
+    utc_stop: '2026-02-26'
+    startdate: '2026-02-25'
+    stopdate: '2026-02-26'
+    content: Full packet
+    packet_type: full
+    filters: []
+    is_all_alert: true
+    raw_delivery_dir: data/raw/data_transfer/test_missing/topic_mode
+""",
+        encoding="utf-8",
+    )
     completed = subprocess.run(
-        [sys.executable, "scripts/triage_full_packet_download.py", "--topic", "ftransfer_lsst_2026-06-27_38507", "--json"],
+        [
+            sys.executable,
+            "scripts/triage_full_packet_download.py",
+            "--registry",
+            str(registry),
+            "--topic",
+            "ftransfer_lsst_test_missing",
+            "--json",
+        ],
         text=True,
         capture_output=True,
         check=False,
     )
     assert completed.returncode == 0
-    assert "ftransfer_lsst_2026-06-27_38507" in completed.stdout
+    assert "ftransfer_lsst_test_missing" in completed.stdout
 
 
-def test_unified_runner_safe_stages_dry_run():
+def test_unified_runner_safe_stages_dry_run(tmp_path):
+    config = _missing_run_config(tmp_path, "run_manifest_missing")
     completed = subprocess.run(
         [
             sys.executable,
             "scripts/run_analysis.py",
             "--run-config",
-            "configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml",
+            str(config),
             "--stage",
             "triage",
             "--dry-run",
@@ -179,7 +208,7 @@ def test_unified_runner_safe_stages_dry_run():
             sys.executable,
             "scripts/run_analysis.py",
             "--run-config",
-            "configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml",
+            str(config),
             "--stage",
             "ingest",
         ],
@@ -223,3 +252,54 @@ def _manifest(**overrides):
     if "expected_nights" not in overrides and values["startdate"] < values["stopdate"]:
         values["expected_nights"] = derive_expected_nights(values["startdate"], values["stopdate"])
     return RunManifest(**values)
+
+
+def _missing_run_config(tmp_path, name):
+    path = tmp_path / f"{name}.yaml"
+    path.write_text(
+        f"""
+schema_version: 1
+run_name: {name}
+run_id: {name}
+survey: lsst
+broker: fink
+topic: ftransfer_lsst_{name}
+batch_id: null
+startdate: '2026-02-25'
+stopdate: '2026-02-26'
+date_mode: utc_window
+scope: full_week
+packet_type: full
+content: Full packet
+filters: []
+is_all_alert: true
+expected_nights:
+- '2026-02-25'
+lifecycle_state: raw_missing
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: unresolved
+paths:
+  raw_dir: data/raw/data_transfer/test_missing/{name}
+  processed_dir: data/processed/data_transfer/test_missing/{name}
+  outputs_dir: outputs/data_transfer/test_missing/{name}
+processing:
+  split_by_night: true
+  allow_partial: false
+  max_files: null
+  diagnostics: true
+  validation: true
+  plots: true
+download_evidence:
+  kafka_lag_zero: null
+  expected_total_messages: 10
+  terminal_progress_messages: null
+  local_readable_rows: 0
+  raw_file_count: 0
+  raw_size_bytes: 0
+notes: synthetic missing raw test config
+""",
+        encoding="utf-8",
+    )
+    return path

@@ -136,6 +136,32 @@ python scripts/run_analysis.py \
 
 Do not use `--allow-partial` for science. It is a schema/debug mode.
 
+## Partial Full-Packet Stress Testing
+
+For partial full-packet deliveries, use the quick-analysis path instead of full manifest ingestion when the goal is schema/performance/data-quality stress testing.
+
+The interrupted full-packet partial ingestion showed that serializing all nested fields into JSON shadow columns is too expensive for this delivery shape. The quick-analysis path:
+
+- scans Parquet metadata without loading full payloads,
+- extracts a bounded flattened sample,
+- skips cutout/heavy fields by default,
+- writes reports labeled `partial_debug_stress_test`,
+- makes no completeness claims.
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --max-files 5000 \
+  --write-report
+```
+
+View saved outputs in:
+
+```text
+notebooks/10_full_packet_partial_stress_viewer.ipynb
+```
+
 ## Validation And Diagnostics
 
 Validation distinguishes raw readiness, ingestion success, partial/debug outputs, schema warnings, night coverage, tag-filtered runs, all-alert runs, and packet-type uncertainty.

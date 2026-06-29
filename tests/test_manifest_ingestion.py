@@ -15,13 +15,14 @@ from fink_lsst.bulk_transfer.validation import derive_claim_updates, validate_ru
 from scripts.check_commit_readiness import classify_visible_paths
 
 
-def test_run_analysis_refuses_raw_missing_ingestion():
+def test_run_analysis_refuses_raw_missing_ingestion(tmp_path):
+    config = _missing_run_config(tmp_path, "missing_ingest")
     completed = subprocess.run(
         [
             sys.executable,
             "scripts/run_analysis.py",
             "--run-config",
-            "configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml",
+            str(config),
             "--stage",
             "ingest",
         ],
@@ -33,13 +34,14 @@ def test_run_analysis_refuses_raw_missing_ingestion():
     assert "raw_missing" in completed.stdout
 
 
-def test_run_analysis_ingest_dry_run_includes_blocked_reason():
+def test_run_analysis_ingest_dry_run_includes_blocked_reason(tmp_path):
+    config = _missing_run_config(tmp_path, "missing_dry_run")
     completed = subprocess.run(
         [
             sys.executable,
             "scripts/run_analysis.py",
             "--run-config",
-            "configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml",
+            str(config),
             "--stage",
             "ingest",
             "--dry-run",
@@ -230,3 +232,54 @@ def _write_raw(tmp_path, rows=2, name="part.parquet"):
     import os
 
     os.utime(path, (old, old))
+
+
+def _missing_run_config(tmp_path, name):
+    path = tmp_path / f"{name}.yaml"
+    path.write_text(
+        f"""
+schema_version: 1
+run_name: {name}
+run_id: {name}
+survey: lsst
+broker: fink
+topic: ftransfer_lsst_{name}
+batch_id: null
+startdate: '2026-02-25'
+stopdate: '2026-02-26'
+date_mode: utc_window
+scope: full_week
+packet_type: full
+content: Full packet
+filters: []
+is_all_alert: true
+expected_nights:
+- '2026-02-25'
+lifecycle_state: raw_missing
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: unresolved
+paths:
+  raw_dir: data/raw/data_transfer/test_missing/{name}
+  processed_dir: data/processed/data_transfer/test_missing/{name}
+  outputs_dir: outputs/data_transfer/test_missing/{name}
+processing:
+  split_by_night: true
+  allow_partial: false
+  max_files: null
+  diagnostics: true
+  validation: true
+  plots: true
+download_evidence:
+  kafka_lag_zero: null
+  expected_total_messages: 10
+  terminal_progress_messages: null
+  local_readable_rows: 0
+  raw_file_count: 0
+  raw_size_bytes: 0
+notes: synthetic missing raw test config
+""",
+        encoding="utf-8",
+    )
+    return path

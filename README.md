@@ -157,6 +157,7 @@ See `docs/FULL_NIGHT_TRANSFER_WORKFLOW.md` for Checkpoint 7 full-night all-alert
 See `docs/FULL_WEEK_FULL_PACKET_WORKFLOW.md` for Checkpoint 8A full-week full-packet preflight, command generation, progress monitoring, and raw-schema inspection.
 See `docs/ADAPTIVE_RUN_MANIFESTS.md` for Checkpoint 9A manifest-driven run contracts, lifecycle states, claim states, and compatibility commands.
 See `docs/MANIFEST_DRIVEN_INGESTION.md` for Checkpoint 9B guarded manifest ingestion, nightly splitting, validation, and diagnostics.
+See `docs/FULL_PACKET_INGESTION_PERFORMANCE_NOTE.md` for the Checkpoint 10A full-packet performance note and quick partial stress-analysis path.
 
 ## Hybrid Architecture
 
@@ -267,3 +268,23 @@ python scripts/run_analysis.py \
 ```
 
 Partial/debug outputs are not science-ready and cannot support completeness claims.
+
+## Partial Full-Packet Stress Analysis
+
+Use this path for the partial full-week full-packet dataset. It avoids full nested JSON serialization and skips cutout/heavy fields by default.
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --max-files 5000 \
+  --write-report
+```
+
+Viewer notebook:
+
+```text
+notebooks/10_full_packet_partial_stress_viewer.ipynb
+```
+
+This is partial/debug stress testing only. It does not support full-week, first-day, or all-alert completeness claims.

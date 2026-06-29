@@ -160,3 +160,35 @@ python scripts/run_analysis.py \
 ```
 
 Actual full-week ingestion is guarded and will refuse raw-missing, active, partial, corrupt, or disk-risk states unless `--allow-partial` is explicitly set. Partial mode is for schema/debug only and cannot support science completeness claims.
+
+## Partial Full-Packet Stress Testing
+
+The partial full-week full-packet delivery is useful for stress testing schema and analysis quality, but it is not complete. Do not claim full-week completeness, first-day completeness, or validated all-alert census completeness.
+
+The manifest ingestion path stalled on full nested JSON serialization in `_add_json_shadow_columns` / `json_dumps_stable`. Full packets contain large nested fields, and the partial delivery has more than 100,000 small Parquet files. The quick-analysis path avoids full nested serialization and skips cutout/heavy fields by default.
+
+Metadata-only scan:
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --metadata-only \
+  --write-report
+```
+
+Bounded flattened sample:
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --max-files 5000 \
+  --write-report
+```
+
+Notebook viewer:
+
+```text
+notebooks/10_full_packet_partial_stress_viewer.ipynb
+```
