@@ -9,10 +9,14 @@ import pyarrow.parquet as pq
 
 from fink_lsst.bulk_transfer.quick_analysis import (
     build_quick_partial_report,
+    combine_batch_outputs,
     extract_flat_sample,
+    extract_flat_batches,
+    build_full_partial_visual_report,
     summarize_raw_metadata,
     write_quick_analysis_outputs,
 )
+from fink_lsst.bulk_transfer.quick_plots import generate_quick_analysis_plots
 
 
 def test_metadata_summary_on_synthetic_parquet_files(tmp_path):
@@ -82,6 +86,97 @@ def test_write_quick_analysis_outputs_sample_mode(tmp_path):
     assert Path(result["file_rows_path"]).exists()
     assert Path(result["sample_path"]).exists()
     assert Path(result["quick_report_path"]).exists()
+
+
+def test_batch_quick_analysis_writing_and_resume(tmp_path):
+    raw = tmp_path / "raw"
+    out = tmp_path / "out"
+    raw.mkdir()
+    _write_packet(raw / "part-1.parquet", rows=1)
+    _write_packet(raw / "part-2.parquet", rows=1)
+    batch_paths, summary = extract_flat_batches(raw, out, max_files=None, batch_size=1, progress_every=0)
+    assert len(batch_paths) == 2
+    assert summary["rows"] == 2
+    mtimes = [Path(path).stat().st_mtime for path in batch_paths]
+    resumed_paths, resumed = extract_flat_batches(raw, out, max_files=None, batch_size=1, progress_every=0, resume=True)
+    assert resumed_paths == batch_paths
+    assert [Path(path).stat().st_mtime for path in resumed_paths] == mtimes
+    assert resumed["rows"] == 2
+
+
+def test_figure_generation_on_synthetic_flattened_data(tmp_path):
+    raw = tmp_path / "raw"
+    figures = tmp_path / "figures"
+    raw.mkdir()
+    _write_packet(raw / "part.parquet", rows=5)
+    sample, _summary = extract_flat_sample(raw, max_files=1, progress_every=0)
+    file_rows = summarize_raw_metadata(raw, progress_every=0)["file_rows"]
+    paths = generate_quick_analysis_plots(sample, file_rows, figures)
+    names = {Path(path).name for path in paths}
+    assert "band_distribution.png" in names
+    assert "sky_scatter_ra_dec.png" in names
+
+
+def test_missing_field_plot_handling(tmp_path):
+    figures = tmp_path / "figures"
+    paths = generate_quick_analysis_plots(pd.DataFrame({"x": [1, 2]}), pd.DataFrame(), figures)
+    assert paths == []
+
+
+def test_visual_report_generation(tmp_path):
+    raw = tmp_path / "raw"
+    out = tmp_path / "out"
+    raw.mkdir()
+    _write_packet(raw / "part.parquet", rows=2)
+    metadata = summarize_raw_metadata(raw, expected_total=10, progress_every=0)
+    sample, extraction = extract_flat_sample(raw, max_files=1, progress_every=0)
+    summary = build_quick_partial_report(sample, metadata, out)
+    report_path = build_full_partial_visual_report({**summary, "sample_extraction": extraction}, metadata, ["figures/band_distribution.png"], out)
+    text = report_path.read_text(encoding="utf-8")
+    assert "Partial debug/stress-test only" in text
+    assert "Figure Index" in text
+
+
+def test_all_files_cli_mode_on_synthetic_dataset(tmp_path):
+    raw = tmp_path / "raw"
+    out = tmp_path / "out"
+    raw.mkdir()
+    _write_packet(raw / "part-1.parquet", rows=1)
+    _write_packet(raw / "part-2.parquet", rows=1)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_quick_full_packet_analysis.py",
+            "--raw-dir",
+            str(raw),
+            "--out-dir",
+            str(out),
+            "--all-files",
+            "--batch-size",
+            "1",
+            "--write-report",
+            "--write-plots",
+            "--progress-every",
+            "0",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0
+    assert (out / "batches/flattened_batch_00001.parquet").exists()
+    assert (out / "sample_all_files_flattened.parquet").exists()
+    assert (out / "figures/band_distribution.png").exists()
+
+
+def test_generated_quick_outputs_are_git_ignored():
+    completed = subprocess.run(
+        ["git", "check-ignore", "-q", "outputs/data_transfer/quick_analysis/full_week_full_packet_partial/sample_all_files_flattened.parquet"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0
 
 
 def test_cli_metadata_only_mode(tmp_path):

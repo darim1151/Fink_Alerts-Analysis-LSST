@@ -158,6 +158,7 @@ See `docs/FULL_WEEK_FULL_PACKET_WORKFLOW.md` for Checkpoint 8A full-week full-pa
 See `docs/ADAPTIVE_RUN_MANIFESTS.md` for Checkpoint 9A manifest-driven run contracts, lifecycle states, claim states, and compatibility commands.
 See `docs/MANIFEST_DRIVEN_INGESTION.md` for Checkpoint 9B guarded manifest ingestion, nightly splitting, validation, and diagnostics.
 See `docs/FULL_PACKET_INGESTION_PERFORMANCE_NOTE.md` for the Checkpoint 10A full-packet performance note and quick partial stress-analysis path.
+See `docs/FULL_WEEK_FULL_PACKET_WORKFLOW.md` for the Checkpoint 10B full available partial visual-analysis command, plots, notebook viewer, and completeness limits.
 
 ## Hybrid Architecture
 

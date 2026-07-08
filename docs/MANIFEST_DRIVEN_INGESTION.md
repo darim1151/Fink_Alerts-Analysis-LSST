@@ -156,6 +156,26 @@ python scripts/run_quick_full_packet_analysis.py \
   --write-report
 ```
 
+For the full available partial dataset visual pass, run:
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --all-files \
+  --batch-size 5000 \
+  --write-report \
+  --write-plots
+```
+
+This creates resumable flattened batches and a combined local-only Parquet table when feasible. Figures are written to:
+
+```text
+outputs/data_transfer/quick_analysis/full_week_full_packet_partial/figures/
+```
+
+The plots are diagnostic, not completeness evidence. They emphasize field availability, row-count distribution, filters/bands, time coverage, sky coverage, classifier outputs, repeated identifiers, missingness, and scalar flux/SNR checks while preserving existing generated artifacts.
+
 View saved outputs in:
 
 ```text

@@ -22,12 +22,21 @@ def main() -> int:
     parser.add_argument("--topic")
     parser.add_argument("--registry", default="configs/data_transfer_topics.yaml")
     parser.add_argument("--expected-total", type=int)
-    parser.add_argument("--max-files", type=int, default=5000)
+    parser.add_argument("--max-files", type=int)
+    parser.add_argument("--all-files", action="store_true")
+    parser.add_argument("--batch-size", type=int, default=5000)
+    parser.add_argument("--sample-strategy", choices=("first", "evenly_spaced", "random"), default="first")
+    parser.add_argument("--random-seed", type=int, default=42)
+    parser.add_argument("--no-combine", action="store_true")
     parser.add_argument("--metadata-only", action="store_true")
     parser.add_argument("--include-cutout-columns", action="store_true")
     parser.add_argument("--progress-every", type=int, default=1000)
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
     parser.add_argument("--write-report", action="store_true")
+    parser.add_argument("--write-plots", action="store_true")
+    parser.add_argument("--skip-plots", action="store_true")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
     raw_dir = resolve_raw_dir(args)
@@ -42,10 +51,17 @@ def main() -> int:
         raw_dir,
         out_dir=output_dir,
         expected_total=args.expected_total,
-        max_files=args.max_files,
+        max_files=None if args.all_files else args.max_files,
         metadata_only=args.metadata_only,
         include_cutout_columns=args.include_cutout_columns,
         progress_every=args.progress_every,
+        batch_size=args.batch_size,
+        sample_strategy=args.sample_strategy,
+        random_seed=args.random_seed,
+        no_combine=args.no_combine,
+        resume=args.resume,
+        force=args.force,
+        write_plots=args.write_plots and not args.skip_plots,
     )
     print(json.dumps(_printable_result(result), indent=2, sort_keys=True))
     return 0
@@ -92,6 +108,11 @@ def _printable_result(result: dict) -> dict:
             "band_counts": sample.get("band_counts"),
             "limitations": sample.get("limitations"),
         }
+    if compact.get("batch_paths"):
+        compact["batch_count"] = len(compact["batch_paths"])
+        compact["batch_paths"] = compact["batch_paths"][:5]
+    if compact.get("figure_paths"):
+        compact["figure_count"] = len(compact["figure_paths"])
     return compact
 
 

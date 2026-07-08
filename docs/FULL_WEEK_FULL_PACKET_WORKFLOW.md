@@ -187,6 +187,40 @@ python scripts/run_quick_full_packet_analysis.py \
   --write-report
 ```
 
+Full available partial visual analysis:
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --all-files \
+  --batch-size 5000 \
+  --write-report \
+  --write-plots
+```
+
+If a full available partial pass is too slow for an interactive checkpoint, use a bounded fallback that still samples more broadly than the original 5000-file run:
+
+```bash
+python scripts/run_quick_full_packet_analysis.py \
+  --run-config configs/runs/full_week_full_packet_2026-02-25_to_2026-03-04.yaml \
+  --expected-total 1071519 \
+  --max-files 25000 \
+  --batch-size 5000 \
+  --sample-strategy evenly_spaced \
+  --write-report \
+  --write-plots
+```
+
+The visual quick-analysis pass is intentionally conservative:
+
+- it preserves existing raw files and generated outputs,
+- it writes new plots under `outputs/data_transfer/quick_analysis/full_week_full_packet_partial/figures/`,
+- it extracts selected scalar scientific fields from `diaSource`, `diaObject`, `clf`, `pred`, `xm`, and `misc`,
+- it skips cutout/heavy payload fields,
+- it labels reports as partial/debug stress testing,
+- it does not support full-week, first-day, or all-alert completeness claims.
+
 Notebook viewer:
 
 ```text
