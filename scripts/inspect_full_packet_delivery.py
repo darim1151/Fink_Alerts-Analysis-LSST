@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--topic")
     parser.add_argument("--run-config")
     parser.add_argument("--raw-dir")
+    parser.add_argument("--output-dir")
     parser.add_argument("--registry", default="configs/data_transfer_topics.yaml")
     args = parser.parse_args()
     entry = None
@@ -33,7 +34,7 @@ def main() -> int:
         entry = find_topic_entry(registry, topic=args.topic)
     raw_dir = Path(args.raw_dir) if args.raw_dir else Path((entry or {}).get("raw_delivery_dir", ""))
     raw_dir = raw_dir if raw_dir.is_absolute() else PROJECT_ROOT / raw_dir
-    output_base = output_base_for(entry)
+    output_base = _abs(args.output_dir) if args.output_dir else output_base_for(entry)
     output_base.mkdir(parents=True, exist_ok=True)
     if not raw_dir.exists():
         payload = {"status": "raw_delivery_missing", "raw_dir": str(raw_dir), "topic": (entry or {}).get("topic")}

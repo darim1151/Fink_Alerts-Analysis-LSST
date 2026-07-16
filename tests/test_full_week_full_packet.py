@@ -104,13 +104,21 @@ def test_execution_manifest_creation_and_transitions(tmp_path, monkeypatch):
 
 def test_full_packet_inspection_missing_raw_behavior(tmp_path):
     completed = subprocess.run(
-        [sys.executable, "scripts/inspect_full_packet_delivery.py", "--raw-dir", str(tmp_path / "missing")],
+        [
+            sys.executable,
+            "scripts/inspect_full_packet_delivery.py",
+            "--raw-dir",
+            str(tmp_path / "missing"),
+            "--output-dir",
+            str(tmp_path / "inspection"),
+        ],
         text=True,
         capture_output=True,
         check=False,
     )
     assert completed.returncode == 0
     assert "raw_delivery_missing" in completed.stdout
+    assert (tmp_path / "inspection/raw_full_packet_field_inventory.json").exists()
 
 
 def test_preflight_decision_with_mocked_good_state(tmp_path, monkeypatch):
