@@ -9,10 +9,18 @@ from fink_lsst.bulk_transfer.diagnostics import build_run_diagnostics
 from fink_lsst.bulk_transfer.nightly_split import split_table_by_night
 from fink_lsst.bulk_transfer.raw_audit import build_raw_audit
 from fink_lsst.bulk_transfer.run_ingestion import IngestionOptions, ingest_run, plan_ingestion
-from fink_lsst.bulk_transfer.run_manifest import ClaimStateSet, DownloadEvidence, ProcessingOptions, RunManifest, RunPaths
+from fink_lsst.bulk_transfer.run_manifest import (
+    ClaimStateSet,
+    DownloadEvidence,
+    ProcessingOptions,
+    RunManifest,
+    RunPaths,
+    load_run_manifest,
+)
 from fink_lsst.bulk_transfer.table_builder import build_tables_for_run
 from fink_lsst.bulk_transfer.validation import derive_claim_updates, validate_run_outputs
 from scripts.check_commit_readiness import classify_visible_paths
+from scripts.triage_full_packet_download import render_triage_markdown
 
 
 def test_run_analysis_refuses_raw_missing_ingestion(tmp_path):
@@ -74,6 +82,52 @@ def test_smoke_validate_manifest_dry_run_succeeds():
     assert completed.returncode == 0
     assert "smoke_in_tns_2026-02-25" in completed.stdout
     assert "claim_state" in completed.stdout
+
+
+def test_light_static_baseline_manifest_is_dedicated_and_conservative():
+    manifest = load_run_manifest("configs/runs/full_week_light_static_2026-02-25_to_2026-03-04.yaml")
+    assert manifest.topic == "ftransfer_lsst_2026-07-29_101214"
+    assert manifest.scope == "full_week"
+    assert manifest.packet_type == "light_static"
+    assert manifest.content == "Light static packet"
+    assert manifest.filters == []
+    assert manifest.is_all_alert is True
+    assert manifest.download_evidence.kafka_lag_zero is True
+    assert manifest.download_evidence.expected_total_messages == 1636189
+    assert manifest.download_evidence.local_readable_rows == 1633438
+    assert manifest.claim_state.all_alert_completeness == "blocked"
+    assert manifest.claim_state.week_completeness == "unresolved"
+    assert "0.168% row-count reconciliation gap" in manifest.notes
+
+
+def test_triage_report_uses_light_static_label():
+    report = {
+        "topic": "ftransfer_lsst_test",
+        "content": "Light static packet",
+        "packet_type": "light_static",
+        "raw_dir": "data/raw/data_transfer/test",
+        "raw_path_ignored_by_git": True,
+        "audit": {
+            "file_count": 1,
+            "size_summary": {"total_size_bytes": 1, "largest_files": [], "tiny_suspicious_files": []},
+            "parquet": {"parquet_file_count": 1, "total_readable_rows": 1, "unreadable_parquet_count": 0},
+            "activity": {"newest_modified_file": None, "oldest_modified_file": None, "activity_windows": {}},
+            "schemas": {"schema_groups": []},
+        },
+        "readiness": {
+            "state": "partial_download",
+            "reason": "row reconciliation gap",
+            "raw_download_appears_complete": False,
+            "week_scientifically_complete": False,
+            "expected_total": 2,
+            "apparent_percent_complete": 50.0,
+            "remaining_rows": 1,
+            "terminal_progress_gap": 1,
+        },
+    }
+    rendered = render_triage_markdown(report)
+    assert rendered.startswith("# Light-Static Download Triage")
+    assert "Full-Packet Download Triage" not in rendered
 
 
 def test_plan_refuses_partial_ingestion_by_default(tmp_path):

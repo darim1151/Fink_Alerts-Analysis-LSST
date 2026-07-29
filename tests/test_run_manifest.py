@@ -115,9 +115,16 @@ def test_run_index_loading_and_summary():
     assert {run["name"] for run in runs} == {
         "smoke_in_tns_2026-02-25",
         "full_week_full_packet_2026-02-25_to_2026-03-04",
+        "full_week_light_static_2026-02-25_to_2026-03-04",
     }
     summaries = summarize_runs("configs/runs/index.yaml")
     assert any(item["packet_type"] == "full" for item in summaries)
+    assert any(
+        item["name"] == "full_week_light_static_2026-02-25_to_2026-03-04"
+        and item["packet_type"] == "light_static"
+        and item["claim_state"]["week_completeness"] == "unresolved"
+        for item in summaries
+    )
 
 
 def test_manifest_validation_cli_success_and_failure(tmp_path):
@@ -129,6 +136,7 @@ def test_manifest_validation_cli_success_and_failure(tmp_path):
     )
     assert success.returncode == 0
     assert "full_week_full_packet_2026-02-25_to_2026-03-04" in success.stdout
+    assert "full_week_light_static_2026-02-25_to_2026-03-04" in success.stdout
 
     bad = manifest_to_dict(_manifest(startdate="2026-02-26", stopdate="2026-02-25", expected_nights=["2026-02-26"]))
     bad_path = tmp_path / "bad.yaml"

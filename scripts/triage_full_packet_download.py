@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Triage a full-week full-packet raw delivery without modifying raw files."""
+"""Triage a Fink Data Transfer raw delivery without modifying raw files."""
 
 from __future__ import annotations
 
@@ -55,6 +55,8 @@ def build_triage_report(raw_dir: Path, entry: dict[str, Any] | None, expected_to
     return {
         "topic": (entry or {}).get("topic"),
         "scope": (entry or {}).get("scope"),
+        "packet_type": (entry or {}).get("packet_type"),
+        "content": (entry or {}).get("content") or (entry or {}).get("content_type"),
         "raw_dir": str(raw_dir),
         "raw_path_ignored_by_git": raw_ignored,
         "expected_total": expected_total,
@@ -70,10 +72,18 @@ def render_triage_markdown(report: dict[str, Any]) -> str:
     size = audit["size_summary"]
     parquet = audit["parquet"]
     activity = audit["activity"]
+    packet_type = report.get("packet_type")
+    title = {
+        "full": "Full-Packet Download Triage",
+        "light_static": "Light-Static Download Triage",
+        "medium": "Medium-Packet Download Triage",
+    }.get(packet_type, "Data Transfer Download Triage")
     lines = [
-        "# Full-Packet Download Triage",
+        f"# {title}",
         "",
         f"- Topic: `{report.get('topic')}`",
+        f"- Content: `{report.get('content')}`",
+        f"- Packet type: `{packet_type}`",
         f"- Raw dir: `{report.get('raw_dir')}`",
         f"- Raw path ignored by Git: `{report.get('raw_path_ignored_by_git')}`",
         f"- State: `{readiness['state']}`",
@@ -138,7 +148,13 @@ def _expected_total_from_entry(entry: dict[str, Any] | None) -> int | None:
 
 
 def output_base_for(entry: dict[str, Any]) -> Path:
-    return PROJECT_ROOT / "outputs/data_transfer/full_week_full_packet" / f"{entry['utc_start']}_to_{entry['utc_stop']}"
+    configured = entry.get("output_dir_template") or entry.get("outputs_dir")
+    if configured:
+        run_id = entry.get("run_id") or entry.get("topic") or "run"
+        path = Path(str(configured).replace("<run_id>", str(run_id)))
+        return path if path.is_absolute() else PROJECT_ROOT / path
+    packet_component = "full_week_full_packet" if entry.get("packet_type") == "full" else "full_week"
+    return PROJECT_ROOT / "outputs/data_transfer" / packet_component / f"{entry['utc_start']}_to_{entry['utc_stop']}"
 
 
 def git_ignored(path: Path) -> bool:

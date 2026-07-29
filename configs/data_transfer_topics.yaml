@@ -49,3 +49,41 @@ topics:
   output_dir_template: outputs/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/<run_id>
   created_at_utc: '2026-06-27T21:56:14.476591+00:00'
   notes: First full-week full-packet LSST Data Transfer request
+- topic: ftransfer_lsst_2026-07-29_101214
+  scope: full_week
+  survey: lsst
+  utc_start: '2026-02-25'
+  utc_stop: '2026-03-04'
+  startdate: '2026-02-25'
+  stopdate: '2026-03-04'
+  content: Light static packet
+  content_type: Light static packet
+  packet_type: light_static
+  filters: []
+  filter: null
+  is_all_alert: true
+  all_alerts: true
+  expected_nights:
+  - '2026-02-25'
+  - '2026-02-26'
+  - '2026-02-27'
+  - '2026-02-28'
+  - '2026-03-01'
+  - '2026-03-02'
+  - '2026-03-03'
+  claim_policy:
+    week_complete_default: unresolved
+    allow_completeness_only_after_validation: true
+  kafka_lag_zero: true
+  expected_total_messages: 1636189
+  local_readable_rows: 1633438
+  raw_file_count: 2440
+  row_gap_expected_minus_local: 2751
+  row_gap_fraction: 0.001681346103659174
+  raw_delivery_dir: data/raw/data_transfer/full_week/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-07-29_101214
+  processed_dir_template: data/processed/data_transfer/full_week/2026-02-25_to_2026-03-04/<run_id>
+  output_dir_template: outputs/data_transfer/full_week/2026-02-25_to_2026-03-04/<run_id>
+  created_at_utc: '2026-07-29T06:58:17.601610+00:00'
+  notes: Kafka lag is zero and all local Parquet files are readable, but local row
+    count is 1,633,438 versus Kafka expected 1,636,189, a 0.168% row-count
+    reconciliation gap.

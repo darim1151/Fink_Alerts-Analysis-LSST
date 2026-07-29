@@ -1,0 +1,49 @@
+schema_version: 1
+run_name: full_week_light_static_2026-02-25_to_2026-03-04
+run_id: ftransfer_lsst_2026-07-29_101214
+survey: lsst
+broker: fink
+topic: ftransfer_lsst_2026-07-29_101214
+batch_id: null
+startdate: '2026-02-25'
+stopdate: '2026-03-04'
+date_mode: utc_window
+scope: full_week
+packet_type: light_static
+content: Light static packet
+filters: []
+is_all_alert: true
+expected_nights:
+- '2026-02-25'
+- '2026-02-26'
+- '2026-02-27'
+- '2026-02-28'
+- '2026-03-01'
+- '2026-03-02'
+- '2026-03-03'
+lifecycle_state: raw_partial
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: unresolved
+paths:
+  raw_dir: data/raw/data_transfer/full_week/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-07-29_101214
+  processed_dir: data/processed/data_transfer/full_week/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-07-29_101214
+  outputs_dir: outputs/data_transfer/full_week/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-07-29_101214
+processing:
+  split_by_night: true
+  allow_partial: false
+  max_files: null
+  diagnostics: true
+  validation: true
+  plots: true
+download_evidence:
+  kafka_lag_zero: true
+  expected_total_messages: 1636189
+  terminal_progress_messages: 1636189
+  local_readable_rows: 1633438
+  raw_file_count: 2440
+  raw_size_bytes: null
+notes: Kafka lag is zero and all local Parquet files are readable, but local row
+  count is 1,633,438 versus Kafka expected 1,636,189, a 0.168% row-count
+  reconciliation gap.
