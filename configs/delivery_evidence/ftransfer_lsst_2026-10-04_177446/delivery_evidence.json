@@ -1,0 +1,41 @@
+{
+  "band_counts": {
+    "g": 255580,
+    "i": 238131,
+    "r": 190716,
+    "z": 113620
+  },
+  "diaSourceId_distinct": 798047,
+  "diaSourceId_duplicate_rows": 0,
+  "diaSourceId_nulls": 0,
+  "entries": 7986,
+  "generated_utc": "2026-10-04T20:44:46Z",
+  "midpointMjdTai_max": 61096.37795926014,
+  "midpointMjdTai_min": 61096.02349307947,
+  "midpoint_utc_max": "2026-02-25T09:04:15Z",
+  "midpoint_utc_min": "2026-02-25T00:33:49Z",
+  "non_parquet_files": [],
+  "parquet_files": 7986,
+  "pred_is_sso_counts": {
+    "False": 653217,
+    "True": 144830
+  },
+  "raw_dir": "/astro/store/shire/FINK/data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446",
+  "raw_sha256_inventory": "raw_sha256_inventory.txt",
+  "raw_sha256_inventory_sha256": "6dcc395bffb3eeff95163c7fbe13060b6983498393f1d02c963258d0c060a6db",
+  "readable_parquet_files": 7986,
+  "readable_rows": 798047,
+  "rows_with_midpoint_in_utc_2026-02-25": 798047,
+  "schema_files_sha256": {
+    "arrow_schema_ftransfer_lsst_2026-10-04_177446.metadata": "a4e53924352af8a4f66256aa8fb3d41b3c077134118cb71719f51c63f54a03b1",
+    "avro_schema_ftransfer_lsst_2026-10-04_177446.json": "1e86033fcb48f69880dc0ffe88f9cefcb6e53971b3a8e8b9a3a583c0adf822f7"
+  },
+  "schema_groups": {
+    "94e24bb1455f3bc2=dumped": 7986
+  },
+  "subdirs": [],
+  "symlinks": [],
+  "topic": "ftransfer_lsst_2026-10-04_177446",
+  "total_bytes": 714404023,
+  "unreadable_files": []
+}

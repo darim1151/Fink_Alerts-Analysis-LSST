@@ -103,17 +103,21 @@ topics:
   all_alerts: true
   expected_nights:
   - '2026-02-25'
-  lifecycle_state: topic_registered
+  lifecycle_state: raw_inspected
   raw_delivery_dir: data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
   processed_dir_template: data/processed/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
   output_dir_template: outputs/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
   batch_id: '40'
-  expected_total_messages: null
-  terminal_progress_messages: null
-  local_readable_rows: null
-  raw_file_count: null
+  kafka_lag_zero: true
+  expected_total_messages: 798047
+  terminal_progress_messages: 798047
+  local_readable_rows: 798047
+  raw_file_count: 7986
+  raw_size_bytes: 714404023
+  row_gap_expected_minus_local: 0
   notes: FINK-G3A one-night Light Static canary. Portal request selected one observing
     date (2026-02-25 to 2026-02-25 inclusive in the portal config), which the repository
     encodes as the half-open window 2026-02-25 to 2026-02-26. No tags, filters, blocks,
     catalogue or extra SQL. portal_estimated_alerts is the portal's statistical gauge
-    estimate, not an expected message count. No download evidence observed yet.
+    estimate; Fink support confirmed exactly 798,047 alerts. Raw delivery reconciles
+    exactly (delta 0); not yet ingested or validated.

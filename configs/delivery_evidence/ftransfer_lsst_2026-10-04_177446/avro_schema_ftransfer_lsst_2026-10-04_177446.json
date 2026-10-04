@@ -1,0 +1,1742 @@
+{
+    "__fastavro_parsed": true,
+    "__named_schemas": {
+        "topLevelRecord.clf": {
+            "fields": [
+                {
+                    "name": "snnSnVsOthers_score",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "cats_class",
+                    "type": [
+                        "int",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "cats_score",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "earlySNIa_score",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "elephant_kstest_science",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "elephant_kstest_template",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.clf",
+            "type": "record"
+        },
+        "topLevelRecord.misc": {
+            "fields": [
+                {
+                    "name": "firstDiaSourceMjdTaiFink",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.misc",
+            "type": "record"
+        },
+        "topLevelRecord.pred": {
+            "fields": [
+                {
+                    "name": "is_sso",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "is_first",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "is_cataloged",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "main_label_classifier",
+                    "type": [
+                        "int",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "main_label_crossmatch",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.pred",
+            "type": "record"
+        },
+        "topLevelRecord.topLevelRecord": {
+            "fields": [
+                {
+                    "name": "mean",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "weighted_mean",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "standard_deviation",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "median",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "amplitude",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "beyond_1_std",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "cusum",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "inter_percentile_range_10",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "kurtosis",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_trend",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_trend_sigma",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_trend_noise",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_fit_slope",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_fit_slope_sigma",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "linear_fit_reduced_chi2",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "magnitude_percentage_ratio_40_5",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "magnitude_percentage_ratio_20_10",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "maximum_slope",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "median_absolute_deviation",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "median_buffer_range_percentage_10",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "percent_amplitude",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "mean_variance",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "anderson_darling_normal",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "chi2",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "skew",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "stetson_K",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.topLevelRecord",
+            "type": "record"
+        },
+        "topLevelRecord.value": {
+            "fields": [
+                {
+                    "name": "diaObjectId",
+                    "type": [
+                        "long",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "snr",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "psfFlux",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "psfFluxErr",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "scienceFlux",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "scienceFluxErr",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "templateFlux",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "templateFluxErr",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "band",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "midpointMjdTai",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "ra",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "dec",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "reliability",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "diaSourceId",
+                    "type": [
+                        "long",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "observation_reason",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "target_name",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "brokerIngestMjd",
+                    "type": [
+                        "double",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "lsst_schema_version",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "brokerStartProcessTimestamp",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "fink_broker_version",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "fink_science_version",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "publisher",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "lc_features",
+                    "type": [
+                        {
+                            "type": "map",
+                            "values": [
+                                {
+                                    "fields": [
+                                        {
+                                            "name": "mean",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "weighted_mean",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "standard_deviation",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "median",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "amplitude",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "beyond_1_std",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "cusum",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "inter_percentile_range_10",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "kurtosis",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_trend",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_trend_sigma",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_trend_noise",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_fit_slope",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_fit_slope_sigma",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "linear_fit_reduced_chi2",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "magnitude_percentage_ratio_40_5",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "magnitude_percentage_ratio_20_10",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "maximum_slope",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "median_absolute_deviation",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "median_buffer_range_percentage_10",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "percent_amplitude",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "mean_variance",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "anderson_darling_normal",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "chi2",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "skew",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        },
+                                        {
+                                            "name": "stetson_K",
+                                            "type": [
+                                                "double",
+                                                "null"
+                                            ]
+                                        }
+                                    ],
+                                    "name": "topLevelRecord.topLevelRecord",
+                                    "type": "record"
+                                },
+                                "null"
+                            ]
+                        },
+                        "null"
+                    ]
+                },
+                {
+                    "name": "clf",
+                    "type": {
+                        "fields": [
+                            {
+                                "name": "snnSnVsOthers_score",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "cats_class",
+                                "type": [
+                                    "int",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "cats_score",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "earlySNIa_score",
+                                "type": [
+                                    "double",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "elephant_kstest_science",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "elephant_kstest_template",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            }
+                        ],
+                        "name": "topLevelRecord.clf",
+                        "type": "record"
+                    }
+                },
+                {
+                    "name": "xm",
+                    "type": {
+                        "fields": [
+                            {
+                                "name": "simbad_otype",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "gaiadr3_DR3Name",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "gaiadr3_Plx",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "gaiadr3_e_Plx",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "gaiadr3_VarFlag",
+                                "type": [
+                                    "int",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "legacydr8_zphot",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "legacydr8_e_zphot",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "legacydr8_pstar",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "legacydr8_fqual",
+                                "type": [
+                                    "int",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "tns_fullname",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "tns_type",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "tns_redshift",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "gcvs_type",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "x3hsp_type",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "x4lac_type",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "vsx_Type",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "spicy_class",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "mangrove_HyperLEDA_name",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "mangrove_2MASS_name",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "mangrove_lum_dist",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "mangrove_ang_dist",
+                                "type": [
+                                    "float",
+                                    "null"
+                                ]
+                            }
+                        ],
+                        "name": "topLevelRecord.xm",
+                        "type": "record"
+                    }
+                },
+                {
+                    "name": "pred",
+                    "type": {
+                        "fields": [
+                            {
+                                "name": "is_sso",
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "is_first",
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "is_cataloged",
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "main_label_classifier",
+                                "type": [
+                                    "int",
+                                    "null"
+                                ]
+                            },
+                            {
+                                "name": "main_label_crossmatch",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        ],
+                        "name": "topLevelRecord.pred",
+                        "type": "record"
+                    }
+                },
+                {
+                    "name": "misc",
+                    "type": {
+                        "fields": [
+                            {
+                                "name": "firstDiaSourceMjdTaiFink",
+                                "type": [
+                                    "double",
+                                    "null"
+                                ]
+                            }
+                        ],
+                        "name": "topLevelRecord.misc",
+                        "type": "record"
+                    }
+                },
+                {
+                    "name": "brokerEndProcessTimestamp",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "timestamp",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "tns_type_recomputed",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.value",
+            "type": "record"
+        },
+        "topLevelRecord.xm": {
+            "fields": [
+                {
+                    "name": "simbad_otype",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "gaiadr3_DR3Name",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "gaiadr3_Plx",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "gaiadr3_e_Plx",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "gaiadr3_VarFlag",
+                    "type": [
+                        "int",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "legacydr8_zphot",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "legacydr8_e_zphot",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "legacydr8_pstar",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "legacydr8_fqual",
+                    "type": [
+                        "int",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "tns_fullname",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "tns_type",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "tns_redshift",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "gcvs_type",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "x3hsp_type",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "x4lac_type",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "vsx_Type",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "spicy_class",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "mangrove_HyperLEDA_name",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "mangrove_2MASS_name",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "mangrove_lum_dist",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                },
+                {
+                    "name": "mangrove_ang_dist",
+                    "type": [
+                        "float",
+                        "null"
+                    ]
+                }
+            ],
+            "name": "topLevelRecord.xm",
+            "type": "record"
+        }
+    },
+    "fields": [
+        {
+            "name": "diaObjectId",
+            "type": [
+                "long",
+                "null"
+            ]
+        },
+        {
+            "name": "snr",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "psfFlux",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "psfFluxErr",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "scienceFlux",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "scienceFluxErr",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "templateFlux",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "templateFluxErr",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "band",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "midpointMjdTai",
+            "type": [
+                "double",
+                "null"
+            ]
+        },
+        {
+            "name": "ra",
+            "type": [
+                "double",
+                "null"
+            ]
+        },
+        {
+            "name": "dec",
+            "type": [
+                "double",
+                "null"
+            ]
+        },
+        {
+            "name": "reliability",
+            "type": [
+                "float",
+                "null"
+            ]
+        },
+        {
+            "name": "diaSourceId",
+            "type": [
+                "long",
+                "null"
+            ]
+        },
+        {
+            "name": "observation_reason",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "target_name",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "brokerIngestMjd",
+            "type": [
+                "double",
+                "null"
+            ]
+        },
+        {
+            "name": "lsst_schema_version",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "brokerStartProcessTimestamp",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "fink_broker_version",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "fink_science_version",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "publisher",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "lc_features",
+            "type": [
+                {
+                    "type": "map",
+                    "values": [
+                        {
+                            "fields": [
+                                {
+                                    "name": "mean",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "weighted_mean",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "standard_deviation",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "median",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "amplitude",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "beyond_1_std",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "cusum",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "inter_percentile_range_10",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "kurtosis",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_trend",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_trend_sigma",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_trend_noise",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_fit_slope",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_fit_slope_sigma",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "linear_fit_reduced_chi2",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "magnitude_percentage_ratio_40_5",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "magnitude_percentage_ratio_20_10",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "maximum_slope",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "median_absolute_deviation",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "median_buffer_range_percentage_10",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "percent_amplitude",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "mean_variance",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "anderson_darling_normal",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "chi2",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "skew",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                },
+                                {
+                                    "name": "stetson_K",
+                                    "type": [
+                                        "double",
+                                        "null"
+                                    ]
+                                }
+                            ],
+                            "name": "topLevelRecord.topLevelRecord",
+                            "type": "record"
+                        },
+                        "null"
+                    ]
+                },
+                "null"
+            ]
+        },
+        {
+            "name": "clf",
+            "type": {
+                "fields": [
+                    {
+                        "name": "snnSnVsOthers_score",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "cats_class",
+                        "type": [
+                            "int",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "cats_score",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "earlySNIa_score",
+                        "type": [
+                            "double",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "elephant_kstest_science",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "elephant_kstest_template",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    }
+                ],
+                "name": "topLevelRecord.clf",
+                "type": "record"
+            }
+        },
+        {
+            "name": "xm",
+            "type": {
+                "fields": [
+                    {
+                        "name": "simbad_otype",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "gaiadr3_DR3Name",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "gaiadr3_Plx",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "gaiadr3_e_Plx",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "gaiadr3_VarFlag",
+                        "type": [
+                            "int",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "legacydr8_zphot",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "legacydr8_e_zphot",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "legacydr8_pstar",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "legacydr8_fqual",
+                        "type": [
+                            "int",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "tns_fullname",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "tns_type",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "tns_redshift",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "gcvs_type",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "x3hsp_type",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "x4lac_type",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "vsx_Type",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "spicy_class",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "mangrove_HyperLEDA_name",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "mangrove_2MASS_name",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "mangrove_lum_dist",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "mangrove_ang_dist",
+                        "type": [
+                            "float",
+                            "null"
+                        ]
+                    }
+                ],
+                "name": "topLevelRecord.xm",
+                "type": "record"
+            }
+        },
+        {
+            "name": "pred",
+            "type": {
+                "fields": [
+                    {
+                        "name": "is_sso",
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "is_first",
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "is_cataloged",
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "main_label_classifier",
+                        "type": [
+                            "int",
+                            "null"
+                        ]
+                    },
+                    {
+                        "name": "main_label_crossmatch",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                ],
+                "name": "topLevelRecord.pred",
+                "type": "record"
+            }
+        },
+        {
+            "name": "misc",
+            "type": {
+                "fields": [
+                    {
+                        "name": "firstDiaSourceMjdTaiFink",
+                        "type": [
+                            "double",
+                            "null"
+                        ]
+                    }
+                ],
+                "name": "topLevelRecord.misc",
+                "type": "record"
+            }
+        },
+        {
+            "name": "brokerEndProcessTimestamp",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "timestamp",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        {
+            "name": "tns_type_recomputed",
+            "type": [
+                "string",
+                "null"
+            ]
+        }
+    ],
+    "name": "topLevelRecord.value",
+    "type": "record"
+}

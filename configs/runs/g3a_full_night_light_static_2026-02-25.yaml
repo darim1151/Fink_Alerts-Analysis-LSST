@@ -15,11 +15,11 @@ filters: []
 is_all_alert: true
 expected_nights:
 - '2026-02-25'
-lifecycle_state: topic_registered
+lifecycle_state: raw_inspected
 claim_state:
-  all_alert_completeness: blocked
-  night_completeness: blocked
-  week_completeness: unresolved
+  all_alert_completeness: unresolved
+  night_completeness: unresolved
+  week_completeness: blocked
 paths:
   raw_dir: data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
   processed_dir: data/processed/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
@@ -32,12 +32,12 @@ processing:
   validation: true
   plots: true
 download_evidence:
-  kafka_lag_zero: null
-  expected_total_messages: null
-  terminal_progress_messages: null
-  local_readable_rows: null
-  raw_file_count: null
-  raw_size_bytes: null
+  kafka_lag_zero: true
+  expected_total_messages: 798047
+  terminal_progress_messages: 798047
+  local_readable_rows: 798047
+  raw_file_count: 7986
+  raw_size_bytes: 714404023
 gate: FINK-G3A
 portal_request:
   config_file: configs/portal_requests/datatransfer_20261004_113217.yml
@@ -47,9 +47,51 @@ portal_request:
     stopdate: '2026-02-25'
   portal_estimated_alerts: 798047
   submitted_by_user_utc: '2026-10-04'
+  upstream_confirmed_alerts: 798047
+  upstream_confirmation: Fink support confirmed batch 40 completed and the topic holds exactly 798,047 alerts.
+transfer:
+  release_sha: 1bb8e109f4205ba963f0e8d41ec99ce439eb4f13
+  python_version: 3.11.16
+  fink_client_version: 12.2.0
+  tmux_session: fink-g3a-20260225
+  working_dir: /astro/store/shire/FINK/manifests/ftransfer_lsst_2026-10-04_177446
+  command: finkctl transfer -survey lsst -topic ftransfer_lsst_2026-10-04_177446 -outdir /astro/store/shire/FINK/data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446 -nconsumers 4 --dump_schemas --verbose
+  pre_transfer_kafka_metadata:
+    checked_utc: '2026-10-04T20:37:16Z'
+    brokers: 3
+    partitions: 10
+    high_watermark_sum: 798047
+    low_watermark_sum: 0
+    schema_topic_present: true
+    committed_offsets_before: none
+  start_utc: '2026-10-04T20:37:31Z'
+  end_utc: '2026-10-04T20:42:50Z'
+  exit_code: 0
+  terminal_committed_offsets: 798047
+  terminal_lag: 0
+  second_drain: not performed; terminal lag 0 and committed offsets equal high watermarks
+  log: /astro/store/shire/FINK/logs/ftransfer_lsst_2026-10-04_177446.transfer.log
+  log_sha256: b02338347568dce3d0b5cfd74bd1006608ab01050cc03c2c1c9209f6d73c5699
+  earlier_attempts: 2026-10-04T09:39Z (client config missing) and 2026-10-04T10:27Z (topic unknown on the then-registered broker); neither created a consumer, raw files or committed offsets.
+delivery:
+  evidence_dir: configs/delivery_evidence/ftransfer_lsst_2026-10-04_177446
+  shire_evidence_dir: /astro/store/shire/FINK/manifests/ftransfer_lsst_2026-10-04_177446
+  readable_parquet_files: 7986
+  unreadable_files: 0
+  schema_groups: 1
+  schema_matches_dumped_arrow_schema: true
+  diaSourceId_distinct: 798047
+  diaSourceId_duplicate_rows: 0
+  midpoint_utc_min: '2026-02-25T00:33:49Z'
+  midpoint_utc_max: '2026-02-25T09:04:15Z'
+  rows_with_midpoint_in_utc_night: 798047
+  pred_is_sso_true_rows: 144830
+  raw_sha256_inventory_sha256: 6dcc395bffb3eeff95163c7fbe13060b6983498393f1d02c963258d0c060a6db
+  reconciliation: upstream 798047 = terminal committed 798047 = local readable rows 798047 (delta 0)
 notes: FINK-G3A one-night Light Static canary. Portal request selected one
   observing date (2026-02-25 to 2026-02-25 inclusive in the portal config), which
   the repository encodes as the half-open window 2026-02-25 to 2026-02-26. No tags,
   filters, blocks, catalogue or extra SQL. portal_estimated_alerts is the portal's
-  statistical gauge estimate, not an expected message count. No download evidence
-  observed yet.
+  statistical gauge estimate; Fink support later confirmed the topic holds exactly
+  798,047 alerts. Raw delivery reconciles exactly (delta 0). Not yet ingested or
+  validated; completeness claims stay unresolved.
