@@ -1,5 +1,6 @@
 """Regression tests for the FINK-G2B-R1 production storage boundary (review findings F1-F5)."""
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -13,7 +14,7 @@ import pytest
 from fink_lsst.bulk_transfer.raw_audit import build_raw_audit
 from fink_lsst.bulk_transfer.run_ingestion import IngestionOptions, derive_run_dirs, ingest_run, plan_ingestion
 from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, resolve_run_paths, validate_run_manifest
-from fink_lsst.bulk_transfer.topic_registry import build_download_command, render_download_instructions
+from fink_lsst.bulk_transfer.topic_registry import build_download_command, render_download_instructions, transfer_log_path
 from fink_lsst.data_root import (
     DATA_ROOT_ENV,
     REPO_ROOT,
@@ -248,6 +249,45 @@ def test_unsafe_destination_overrides_fail(tmp_path):
         build_download_command(dict(_entry(), topic="../x"), _root(tmp_path / "other"), 4)
 
 
+def test_transfer_log_symlink_into_raw_is_rejected(tmp_path):
+    root = _root(tmp_path)
+    raw_file = root / RAW_REL / "part.parquet"
+    _parquet(raw_file)
+    (root / "logs").mkdir()
+    (root / f"logs/{TOPIC}.transfer.log").symlink_to(raw_file)
+    with pytest.raises(PathConfinementError):
+        transfer_log_path(root, TOPIC)
+    with pytest.raises(PathConfinementError):
+        render_download_instructions(_entry(), root, 4)
+
+
+def test_transfer_log_symlink_outside_root_is_rejected(tmp_path):
+    root = _root(tmp_path)
+    (root / "logs").mkdir()
+    (root / f"logs/{TOPIC}.transfer.log").symlink_to(tmp_path / "outside.log")
+    with pytest.raises(PathConfinementError):
+        transfer_log_path(root, TOPIC)
+    with pytest.raises(PathConfinementError):
+        render_download_instructions(_entry(), root, 4)
+    elsewhere = _dir(tmp_path / "elsewhere_logs")
+    other = _root(tmp_path / "other")
+    (other / "logs").symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(PathConfinementError):
+        transfer_log_path(other, TOPIC)
+
+
+def test_valid_transfer_log_targets_are_accepted(tmp_path):
+    root = _root(tmp_path)
+    expected = root.resolve() / f"logs/{TOPIC}.transfer.log"
+    assert transfer_log_path(root, TOPIC) == expected
+    (root / "logs").mkdir()
+    expected.write_text("previous attempt\n", encoding="utf-8")
+    assert transfer_log_path(root, TOPIC) == expected
+    assert f'LOG_FILE="{expected}"' in render_download_instructions(_entry(), root, 4)
+    with pytest.raises(PathConfinementError):
+        transfer_log_path(root, "../escape")
+
+
 def test_print_command_cli_uses_external_root(tmp_path):
     root = _root(tmp_path)
     completed = _script("print_data_transfer_download_command.py", ["--topic", TOPIC, "--nconsumers", "3"], root)
@@ -299,25 +339,48 @@ def test_progress_monitor_rejects_escaping_raw_dir(tmp_path):
 # --- production preflight (deployment policy) -------------------------------------------------
 
 
-def test_production_preflight_requires_expected_root(tmp_path):
-    root = _root(tmp_path)
-    for relative in ("data/raw", "data/processed", "outputs", "manifests", "logs"):
-        (root / relative).mkdir(parents=True, exist_ok=True)
-    args = ["--expected-root", str(root), "--run-config", "configs/runs/full_week_light_static_2026-02-25_to_2026-03-04.yaml"]
-    env_extra = {"PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}"}
-    (tmp_path / "bin").mkdir()
-    fake = tmp_path / "bin/finkctl"
-    fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    fake.chmod(0o755)
-    completed = _script("arnor_production_preflight.py", args, root, env_extra)
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    report = json.loads(completed.stdout)
+def test_production_preflight_requires_expected_root(tmp_path, monkeypatch, capsys):
+    root = _preflight_root(tmp_path, monkeypatch)
+    assert _preflight(monkeypatch, capsys, root, root) == 0
+    report = json.loads(capsys.readouterr().out)
     assert report["resolved"]["raw_delivery"] == str(root.resolve() / RAW_REL)
+    assert report["resolved"]["transfer_log"] == str(root.resolve() / f"logs/{TOPIC}.transfer.log")
     assert report["transfer_command"][:2] == ["finkctl", "transfer"]
     other = _dir(tmp_path / "other")
-    mismatch = _script("arnor_production_preflight.py", args, other, env_extra)
-    assert mismatch.returncode == 1
-    assert not json.loads(mismatch.stdout)["ok"]
+    assert _preflight(monkeypatch, capsys, other, root) == 1
+    assert not json.loads(capsys.readouterr().out)["ok"]
+
+
+def test_production_preflight_cli_cannot_override_root(tmp_path):
+    root = _root(tmp_path)
+    completed = _script("arnor_production_preflight.py", ["--expected-root", str(root)], root)
+    assert completed.returncode == 2
+    assert "unrecognized arguments: --expected-root" in completed.stderr
+    module = _load_preflight()
+    assert module.PRODUCTION_DATA_ROOT == "/astro/store/shire/FINK"
+    default_report = _script("arnor_production_preflight.py", [], root)
+    assert json.loads(default_report.stdout)["expected_root"] == "/astro/store/shire/FINK"
+    assert default_report.returncode == 1
+
+
+@pytest.mark.parametrize("target", ["raw", "outside", "elsewhere_in_root"])
+def test_preflight_rejects_redirected_transfer_log(tmp_path, monkeypatch, capsys, target):
+    root = _preflight_root(tmp_path, monkeypatch)
+    destinations = {
+        "raw": root / RAW_REL / "part.parquet",
+        "outside": tmp_path / "outside.log",
+        "elsewhere_in_root": root / "outputs/hijacked.log",
+    }
+    destination = destinations[target]
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("untouched", encoding="utf-8")
+    (root / f"logs/{TOPIC}.transfer.log").symlink_to(destination)
+    assert _preflight(monkeypatch, capsys, root, root) == 1
+    report = json.loads(capsys.readouterr().out)
+    failed = {check["name"]: check["detail"] for check in report["checks"] if not check["ok"]}
+    assert "paths_confined" in failed and "outside" in failed["paths_confined"]
+    assert "transfer_log" not in report.get("resolved", {})
+    assert destination.read_text(encoding="utf-8") == "untouched"
 
 
 # --- helpers -----------------------------------------------------------------------------------
@@ -372,6 +435,32 @@ def _parquet(path):
     pd.DataFrame({"diaObjectId": [1, 2], "diaSourceId": [11, 12], "midpointMjdTai": [61096.1, 61096.2], "band": ["g", "r"], "scienceFlux": [1.0, 2.0]}).to_parquet(path, index=False)
     old = time.time() - 7200
     os.utime(path, (old, old))
+
+
+def _load_preflight():
+    spec = importlib.util.spec_from_file_location("arnor_production_preflight", REPO_ROOT / "scripts/arnor_production_preflight.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _preflight_root(tmp_path, monkeypatch):
+    root = _root(tmp_path)
+    for relative in ("data/raw", "data/processed", "outputs", "manifests", "logs"):
+        (root / relative).mkdir(parents=True, exist_ok=True)
+    bin_dir = _dir(tmp_path / "bin")
+    fake = bin_dir / "finkctl"
+    fake.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    return root
+
+
+def _preflight(monkeypatch, capsys, data_root, expected_root):
+    capsys.readouterr()
+    monkeypatch.setenv(DATA_ROOT_ENV, str(data_root))
+    args = ["--run-config", "configs/runs/full_week_light_static_2026-02-25_to_2026-03-04.yaml"]
+    return _load_preflight().main(args, expected_root=str(expected_root))
 
 
 def _script(name, args, data_root, env_extra=None):

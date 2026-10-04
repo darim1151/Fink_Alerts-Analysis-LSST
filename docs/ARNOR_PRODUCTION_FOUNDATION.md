@@ -66,13 +66,13 @@ Result: Python 3.11.16, fink-client 12.2.0, `finkctl` CLI. The full package list
 finkctl transfer -survey lsst -topic <TOPIC> -outdir /astro/store/shire/FINK/data/raw/data_transfer/<scope>/<window>/<TOPIC> -nconsumers 4 --dump_schemas --verbose
 ```
 
-The output directory is always absolute and must stay under `data/raw/data_transfer`; `-nconsumers` is always present and must be 1-32 (default 4). `--instructions` adds a `tee` into `<root>/logs/<TOPIC>.transfer.log`.
+The output directory is always absolute and must stay under `data/raw/data_transfer`; `-nconsumers` is always present and must be 1-32 (default 4). `--instructions` adds a `tee` into `<root>/logs/<TOPIC>.transfer.log`; that file itself is confined to `logs/`, so an existing symlink at that name leading elsewhere (raw data, other project areas, outside the root) stops generation.
 
 `scripts/summarize_download_progress.py --run-config <manifest>` audits the confined raw directory and writes `download_progress.json` and `DOWNLOAD_PROGRESS.md` into the manifest's `outputs_dir` under the data root. Light Static runs are pointed at the manifest-driven runner, never at Full Packet tooling.
 
 ## Production preflight
 
-`scripts/arnor_production_preflight.py [--run-config <manifest>]` is read-only. It requires `FINK_LSST_DATA_ROOT` to be exactly `/astro/store/shire/FINK`, checks that `data/raw`, `data/processed`, `outputs`, `manifests` and `logs` are real, writable directories, finds `finkctl`, and prints the resolved raw, processed-run and report paths and the generated transfer command. This Arnor-specific policy lives only in that script; the library accepts any safe root.
+`scripts/arnor_production_preflight.py [--run-config <manifest>]` is read-only. It requires `FINK_LSST_DATA_ROOT` to be exactly `/astro/store/shire/FINK` (fixed; there is no CLI override), checks that `data/raw`, `data/processed`, `outputs`, `manifests` and `logs` are real, writable directories, finds `finkctl`, and prints the confined raw, processed-run, report and transfer-log paths and the generated transfer command. This Arnor-specific policy lives only in that script; the library accepts any safe root.
 
 ## Working session
 

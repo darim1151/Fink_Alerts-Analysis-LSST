@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fink_lsst.bulk_transfer.run_ingestion import derive_run_dirs
 from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, resolve_run_paths, topic_entry_from_manifest, validate_run_manifest
-from fink_lsst.bulk_transfer.topic_registry import DEFAULT_TRANSFER_CONSUMERS, build_download_command
+from fink_lsst.bulk_transfer.topic_registry import DEFAULT_TRANSFER_CONSUMERS, build_download_command, transfer_log_path
 from fink_lsst.data_root import DATA_ROOT_ENV, confine, resolve_data_root, storage_base
 
 
@@ -30,14 +30,14 @@ PRODUCTION_DATA_ROOT = "/astro/store/shire/FINK"
 REQUIRED_DIRS = ("data/raw", "data/processed", "outputs", "manifests", "logs")
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, expected_root: str = PRODUCTION_DATA_ROOT) -> int:
+    """Run the preflight. `expected_root` exists only so tests can avoid the real Arnor path; the CLI never sets it."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expected-root", default=PRODUCTION_DATA_ROOT, help=argparse.SUPPRESS)
     parser.add_argument("--run-config")
     parser.add_argument("--nconsumers", type=int, default=DEFAULT_TRANSFER_CONSUMERS)
     args = parser.parse_args(argv)
 
-    report: dict = {"checks": [], "expected_root": args.expected_root}
+    report: dict = {"checks": [], "expected_root": expected_root}
 
     def check(name: str, ok: bool, detail: str = "") -> bool:
         report["checks"].append({"name": name, "ok": bool(ok), "detail": detail})
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
             check("data_root_valid", True, str(data_root))
         except ValueError as exc:
             check("data_root_valid", False, str(exc))
-    if data_root is not None and check("data_root_is_production_root", data_root == Path(args.expected_root).resolve(), str(data_root)):
+    if data_root is not None and check("data_root_is_production_root", data_root == Path(expected_root).resolve(), str(data_root)):
         for relative in REQUIRED_DIRS:
             base = storage_base(data_root, relative)
             try:
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
                     "processed_run": str(processed_run),
                     "run_outputs": str(output_run),
                     "progress_report": str(paths["outputs_dir"] / "download_progress.json"),
-                    "transfer_log": str(storage_base(data_root, "logs") / f"{manifest.topic}.transfer.log"),
+                    "transfer_log": str(transfer_log_path(data_root, manifest.topic)),
                 }
                 report["transfer_command"] = build_download_command(topic_entry_from_manifest(manifest), data_root, args.nconsumers)
                 check("paths_confined", True)

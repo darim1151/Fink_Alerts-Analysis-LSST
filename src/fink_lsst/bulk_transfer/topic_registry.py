@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from fink_lsst.data_root import confine_tree, storage_base, validate_path_component
+from fink_lsst.data_root import confine, confine_tree, storage_base, validate_path_component
 
 from .scopes import claim_policy_for_scope, date_window_component, derive_expected_nights, normalize_scope, scope_paths
 
@@ -238,6 +238,17 @@ def build_download_command(
     ]
 
 
+def transfer_log_path(data_root: str | Path, topic: str) -> Path:
+    """Return the confined `<data_root>/logs/<topic>.transfer.log` write target.
+
+    The file itself is confined, so an existing symlink at that name that leads
+    out of `logs/` (into raw data, elsewhere in the project, or outside the
+    root) is rejected rather than written through.
+    """
+    logs_base = storage_base(data_root, "logs")
+    return confine(logs_base / f"{validate_path_component(topic, 'topic')}.transfer.log", logs_base)
+
+
 def render_download_command(
     entry: dict[str, Any],
     data_root: str | Path,
@@ -258,7 +269,7 @@ def render_download_instructions(
     argv = build_download_command(entry, data_root, nconsumers, outdir=outdir)
     topic = argv[argv.index("-topic") + 1]
     raw_dir = argv[argv.index("-outdir") + 1]
-    log_file = storage_base(data_root, "logs") / f"{topic}.transfer.log"
+    log_file = transfer_log_path(data_root, topic)
     command = " ".join(shlex.quote(part) for part in argv)
     command = command.replace(shlex.quote(raw_dir), '"$RAW_DIR"').replace(shlex.quote(topic), '"$TOPIC"')
     return "\n".join(
