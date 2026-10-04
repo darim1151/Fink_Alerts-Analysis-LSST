@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -56,16 +57,19 @@ def test_expected_nights_date_order():
         derive_expected_nights("2026-03-04", "2026-02-25")
 
 
-def test_download_command_generation():
-    command = build_download_command(_entry())
+def test_download_command_generation(tmp_path):
+    command = build_download_command(_entry(), tmp_path, 4)
     assert command == [
-        "fink_datatransfer",
+        "finkctl",
+        "transfer",
         "-survey",
         "lsst",
         "-topic",
         "ftransfer_lsst_2026-06-27_38507",
         "-outdir",
-        "data/raw/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-06-27_38507",
+        str(tmp_path.resolve() / "data/raw/data_transfer/full_week_full_packet/2026-02-25_to_2026-03-04/ftransfer_lsst_2026-06-27_38507"),
+        "-nconsumers",
+        "4",
         "--dump_schemas",
         "--verbose",
     ]
@@ -73,16 +77,17 @@ def test_download_command_generation():
 
 def test_download_progress_missing_raw_dir(tmp_path):
     script = Path("scripts/summarize_download_progress.py")
-    completed = subprocess.run([sys.executable, str(script), "--raw-dir", str(tmp_path / "missing")], text=True, capture_output=True, check=False)
+    missing = tmp_path / "data/raw/data_transfer/missing"
+    completed = subprocess.run([sys.executable, str(script), "--raw-dir", str(missing)], text=True, capture_output=True, check=False, env=_root_env(tmp_path))
     assert completed.returncode == 0
     assert "raw_delivery_missing" in completed.stdout
 
 
 def test_download_progress_synthetic_parquet(tmp_path):
-    raw = tmp_path / "raw"
-    raw.mkdir()
+    raw = tmp_path / "data/raw/data_transfer/raw"
+    raw.mkdir(parents=True)
     pd.DataFrame({"diaObjectId": [1, 2], "payload": [b"a", b"b"]}).to_parquet(raw / "part.parquet", index=False)
-    completed = subprocess.run([sys.executable, "scripts/summarize_download_progress.py", "--raw-dir", str(raw)], text=True, capture_output=True, check=False)
+    completed = subprocess.run([sys.executable, "scripts/summarize_download_progress.py", "--raw-dir", str(raw)], text=True, capture_output=True, check=False, env=_root_env(tmp_path))
     assert completed.returncode == 0
     assert "total_rows_if_feasible" in completed.stdout
     assert "`2`" in completed.stdout
@@ -216,6 +221,13 @@ def _entry():
         all_alert=True,
         notes="First full-week full-packet LSST Data Transfer request",
     )
+
+
+def _root_env(data_root):
+    env = dict(os.environ)
+    env["FINK_LSST_DATA_ROOT"] = str(data_root)
+    env["PYTHONPATH"] = str(Path("src").resolve())
+    return env
 
 
 def _load_script(name):

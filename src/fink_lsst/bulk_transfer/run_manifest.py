@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from fink_lsst.data_root import PathConfinementError, confine, confine_tree, storage_base, validate_path_component
+
 from .run_state import (
     ClaimState,
     DataScope,
@@ -159,6 +161,13 @@ def validate_run_manifest(manifest: RunManifest, project_root: str | Path = ".")
     if not manifest.is_all_alert and not manifest.filters and manifest.scope in {DataScope.SINGLE_NIGHT.value, DataScope.MULTI_NIGHT.value, DataScope.FULL_WEEK.value, DataScope.FULL_MONTH.value}:
         warnings.append("unfiltered non-all-alert manifest has conservative completeness claims")
 
+    for label, value in (("run_name", manifest.run_name), ("run_id", manifest.run_id)):
+        if value is not None:
+            try:
+                validate_path_component(value, label)
+            except PathConfinementError as exc:
+                errors.append(str(exc))
+
     project_root = Path(project_root).resolve()
     for field_name, base in PATH_BASES.items():
         path_value = getattr(manifest.paths, field_name)
@@ -188,6 +197,27 @@ def validate_run_manifest(manifest: RunManifest, project_root: str | Path = ".")
         errors.append("manifest contains credential-looking keys or values: " + ", ".join(secret_paths[:10]))
 
     return errors, warnings
+
+
+def resolve_run_paths(manifest: RunManifest, data_root: str | Path) -> dict[str, Path]:
+    """Resolve and confine a manifest's raw, processed, and outputs directories.
+
+    Each directory must resolve under its canonical base below `data_root`.
+    Every existing entry in the raw directory must stay inside that raw
+    directory, and every existing entry in the processed/outputs directories
+    must stay inside them, so symlinked inputs or write targets cannot escape.
+    Raises `PathConfinementError`; never falls back to another location.
+    """
+    resolved = {}
+    for field_name, base in PATH_BASES.items():
+        value = getattr(manifest.paths, field_name)
+        if not value:
+            raise PathConfinementError(f"paths.{field_name} is required")
+        candidate = Path(value)
+        if not candidate.is_absolute():
+            candidate = Path(data_root).resolve() / candidate
+        resolved[field_name] = confine_tree(candidate, storage_base(data_root, base))
+    return resolved
 
 
 def derive_expected_nights(startdate: str, stopdate: str) -> list[str]:
@@ -454,9 +484,8 @@ def _legacy_scope_for_manifest(manifest: RunManifest) -> str:
 
 def _is_under(path: Path, base: Path, project_root: Path) -> bool:
     absolute_path = path if path.is_absolute() else project_root / path
-    absolute_base = project_root / base
     try:
-        absolute_path.resolve().relative_to(absolute_base.resolve())
+        confine(absolute_path, storage_base(project_root, base))
         return True
-    except ValueError:
+    except PathConfinementError:
         return False

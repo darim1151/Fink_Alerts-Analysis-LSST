@@ -10,10 +10,14 @@ from typing import Any
 
 import yaml
 
+from fink_lsst.data_root import confine_tree, storage_base, validate_path_component
+
 from .scopes import claim_policy_for_scope, date_window_component, derive_expected_nights, normalize_scope, scope_paths
 
 
 DEFAULT_TOPIC_REGISTRY_PATH = Path("configs/data_transfer_topics.yaml")
+DEFAULT_TRANSFER_CONSUMERS = 4
+MAX_TRANSFER_CONSUMERS = 32
 
 
 def load_topic_registry(path: str | Path = DEFAULT_TOPIC_REGISTRY_PATH) -> dict[str, Any]:
@@ -194,60 +198,93 @@ def build_completeness_scope(metadata: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_download_command(entry: dict[str, Any], outdir: str | Path | None = None) -> list[str]:
-    """Return the recommended fink_datatransfer command as argv tokens."""
-    topic = entry.get("topic")
-    if not topic:
+def build_download_command(
+    entry: dict[str, Any],
+    data_root: str | Path,
+    nconsumers: int,
+    outdir: str | Path | None = None,
+) -> list[str]:
+    """Return the fink-client 12 `finkctl transfer` command as argv tokens.
+
+    The output directory is made absolute and must resolve under
+    `<data_root>/data/raw/data_transfer`. `nconsumers` is always emitted so the
+    client never falls back to one consumer per logical CPU.
+    """
+    if not entry.get("topic"):
         raise ValueError("Topic entry is missing `topic`")
+    topic = validate_path_component(entry["topic"], "topic")
     survey = str(entry.get("survey", "lsst")).lower()
-    if outdir is None:
-        outdir = entry.get("raw_delivery_dir") or f"data/raw/data_transfer/{entry.get('scope', 'delivery')}/{topic}"
+    if survey not in {"lsst", "ztf"}:
+        raise ValueError(f"survey must be lsst or ztf, got {survey!r}")
+    if isinstance(nconsumers, bool) or not isinstance(nconsumers, int) or not 1 <= nconsumers <= MAX_TRANSFER_CONSUMERS:
+        raise ValueError(f"nconsumers must be an integer from 1 to {MAX_TRANSFER_CONSUMERS}, got {nconsumers!r}")
+    raw_dir = Path(outdir or entry.get("raw_delivery_dir") or f"data/raw/data_transfer/{entry.get('scope', 'delivery')}/{topic}")
+    if not raw_dir.is_absolute():
+        raw_dir = Path(data_root).resolve() / raw_dir
+    destination = confine_tree(raw_dir, storage_base(data_root, "data/raw/data_transfer"))
     return [
-        "fink_datatransfer",
+        "finkctl",
+        "transfer",
         "-survey",
         survey,
         "-topic",
-        str(topic),
+        topic,
         "-outdir",
-        str(outdir),
+        str(destination),
+        "-nconsumers",
+        str(nconsumers),
         "--dump_schemas",
         "--verbose",
     ]
 
 
-def render_download_command(entry: dict[str, Any], outdir: str | Path | None = None) -> str:
+def render_download_command(
+    entry: dict[str, Any],
+    data_root: str | Path,
+    nconsumers: int,
+    outdir: str | Path | None = None,
+) -> str:
     """Render the recommended download command for shell display."""
-    return " ".join(shlex.quote(part) for part in build_download_command(entry, outdir=outdir))
+    return " ".join(shlex.quote(part) for part in build_download_command(entry, data_root, nconsumers, outdir=outdir))
 
 
-def render_download_instructions(entry: dict[str, Any], outdir: str | Path | None = None) -> str:
-    """Render a safe manual download instruction block."""
-    topic = entry["topic"]
-    raw_dir = str(outdir or entry.get("raw_delivery_dir") or f"data/raw/data_transfer/{entry.get('scope', 'delivery')}/{topic}")
-    command = render_download_command(entry, outdir=raw_dir)
+def render_download_instructions(
+    entry: dict[str, Any],
+    data_root: str | Path,
+    nconsumers: int,
+    outdir: str | Path | None = None,
+) -> str:
+    """Render a safe manual download instruction block with a credential-free log."""
+    argv = build_download_command(entry, data_root, nconsumers, outdir=outdir)
+    topic = argv[argv.index("-topic") + 1]
+    raw_dir = argv[argv.index("-outdir") + 1]
+    log_file = storage_base(data_root, "logs") / f"{topic}.transfer.log"
+    command = " ".join(shlex.quote(part) for part in argv)
+    command = command.replace(shlex.quote(raw_dir), '"$RAW_DIR"').replace(shlex.quote(topic), '"$TOPIC"')
     return "\n".join(
         [
             "# Manual Fink Data Transfer Download Command",
             "",
-            "Do not commit raw data. Wait for Kafka lag to reach zero before treating a delivery as complete.",
-            "Full-packet week deliveries may be large and may contain heavy nested or binary fields.",
+            "Do not commit raw data. Kafka lag zero is not proof of completeness; reconcile counts before validation.",
+            "Run inside a dedicated tmux session. The log records the client's verbose output and never credentials.",
             "",
             "```bash",
             f'TOPIC="{topic}"',
             f'RAW_DIR="{raw_dir}"',
+            f'LOG_FILE="{log_file}"',
             "",
-            'mkdir -p "$RAW_DIR"',
+            'mkdir -p "$(dirname "$LOG_FILE")"',
             "",
-            command.replace(shlex.quote(raw_dir), '"$RAW_DIR"').replace(shlex.quote(topic), '"$TOPIC"'),
+            f'{command} 2>&1 | tee -a "$LOG_FILE"',
             "```",
             "",
             "## Safety Checks",
             "",
             "```bash",
-            "df -h .",
+            'df -h "$RAW_DIR"',
             'find "$RAW_DIR" -type f | wc -l',
             'du -sh "$RAW_DIR"',
-            'python scripts/summarize_download_progress.py --raw-dir "$RAW_DIR" --topic "$TOPIC"',
+            'python scripts/summarize_download_progress.py --topic "$TOPIC"',
             "```",
             "",
         ]

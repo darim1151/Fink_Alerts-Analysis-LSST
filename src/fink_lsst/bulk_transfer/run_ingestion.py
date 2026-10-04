@@ -11,6 +11,8 @@ from typing import Any
 import pandas as pd
 import yaml
 
+from fink_lsst.data_root import confine_tree, storage_base, validate_path_component
+
 from .execution import (
     ExecutionManifest,
     FileProcessingResult,
@@ -28,7 +30,7 @@ from .nightly_split import summarize_nightly_counts, write_nightly_tables
 from .output_inspector import classify_file_type, discover_delivery_files
 from .raw_audit import build_raw_audit
 from .raw_readiness import classify_raw_readiness
-from .run_manifest import RunManifest, manifest_to_dict
+from .run_manifest import RunManifest, manifest_to_dict, resolve_run_paths
 from .table_builder import build_tables_for_run
 
 
@@ -70,7 +72,7 @@ class IngestionPlan:
 def ingest_run(manifest: RunManifest, project_root: str | Path, options: IngestionOptions) -> dict[str, Any]:
     """Run guarded manifest-driven ingestion."""
     project_root = Path(project_root)
-    raw_audit = build_raw_audit(_abs(manifest.paths.raw_dir, project_root))
+    raw_audit = build_raw_audit(resolve_run_paths(manifest, project_root)["raw_dir"])
     plan = plan_ingestion(manifest, raw_audit, options, project_root=project_root)
     if options.dry_run:
         return {"status": "dry_run", "plan": asdict(plan), "raw_audit": raw_audit}
@@ -141,8 +143,8 @@ def ingest_run(manifest: RunManifest, project_root: str | Path, options: Ingesti
 
 
 def discover_raw_files_for_manifest(manifest: RunManifest, project_root: str | Path = ".") -> list[Path]:
-    """Discover supported raw delivery files for a manifest."""
-    return discover_delivery_files(_abs(manifest.paths.raw_dir, Path(project_root)))
+    """Discover supported raw delivery files for a manifest, confined to its raw directory."""
+    return discover_delivery_files(resolve_run_paths(manifest, project_root)["raw_dir"])
 
 
 def plan_ingestion(
@@ -164,11 +166,7 @@ def plan_ingestion(
         files = files[: options.max_files]
     partial = bool(options.allow_partial)
     run_id = _run_id(manifest, options)
-    processed_dir = project_root / "data/processed/data_transfer/runs" / manifest.run_name / run_id
-    output_dir = project_root / "outputs/data_transfer/runs" / manifest.run_name / run_id
-    if partial:
-        processed_dir = processed_dir / "partial"
-        output_dir = output_dir / "partial"
+    processed_dir, output_dir = derive_run_dirs(manifest.run_name, run_id, project_root, partial=partial)
     allowed = raw_state not in BLOCKED_RAW_STATES or options.allow_partial
     reason = readiness["reason"]
     warnings = []
@@ -189,6 +187,24 @@ def plan_ingestion(
         processed_dir=str(processed_dir),
         output_dir=str(output_dir),
         warnings=warnings,
+    )
+
+
+def derive_run_dirs(run_name: str, run_id: str, project_root: str | Path, partial: bool = False) -> tuple[Path, Path]:
+    """Return confined `runs/<run_name>/<run_id>` processed and output directories.
+
+    Both identifiers must be single path components, and both directories (and
+    anything already inside them) must stay under the canonical processed and
+    outputs bases, checked before anything is created.
+    """
+    run_parts = (validate_path_component(run_name, "run_name"), validate_path_component(run_id, "run_id"))
+    if partial:
+        run_parts += ("partial",)
+    processed_base = storage_base(project_root, "data/processed/data_transfer")
+    output_base = storage_base(project_root, "outputs/data_transfer")
+    return (
+        confine_tree(processed_base.joinpath("runs", *run_parts), processed_base),
+        confine_tree(output_base.joinpath("runs", *run_parts), output_base),
     )
 
 
@@ -363,11 +379,6 @@ def _read_raw_file(path: Path) -> pd.DataFrame:
     if kind == "csv":
         return pd.read_csv(path)
     raise ValueError(f"Unsupported raw file type: {path}")
-
-
-def _abs(path: str | Path, project_root: Path) -> Path:
-    candidate = Path(path)
-    return candidate if candidate.is_absolute() else project_root / candidate
 
 
 def _run_id(manifest: RunManifest, options: IngestionOptions) -> str:

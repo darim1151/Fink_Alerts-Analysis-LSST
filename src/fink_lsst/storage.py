@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .data_root import PathConfinementError, confine, storage_base
+
 
 ALLOWED_ARTIFACT_ROOTS = ("data", "outputs")
 
@@ -25,14 +27,22 @@ def ensure_under_allowed_roots(
     project_root: str | Path | None = None,
     allowed_roots: Iterable[str] = ALLOWED_ARTIFACT_ROOTS,
 ) -> Path:
-    """Return a resolved path only if it is under an allowed artifact root."""
+    """Return a resolved path only if it is under an allowed artifact root.
+
+    The allowed roots are canonical `<root>/<name>` bases, so a symlinked
+    anchor or an existing symlinked target that leads elsewhere is rejected.
+    """
     root = Path(project_root or Path.cwd()).resolve()
-    resolved = project_path(path, root)
-    allowed = [(root / allowed_root).resolve() for allowed_root in allowed_roots]
-    if not any(resolved == base or base in resolved.parents for base in allowed):
-        allowed_text = ", ".join(str(base.relative_to(root)) for base in allowed)
-        raise ValueError(f"Artifact path must be under one of: {allowed_text}")
-    return resolved
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    allowed_roots = tuple(allowed_roots)
+    for allowed_root in allowed_roots:
+        try:
+            return confine(candidate, storage_base(root, allowed_root))
+        except PathConfinementError:
+            continue
+    raise ValueError(f"Artifact path must be under one of: {', '.join(allowed_roots)}")
 
 
 def safe_artifact_path(

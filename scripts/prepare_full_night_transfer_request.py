@@ -13,7 +13,7 @@ from fink_lsst.bulk_transfer.request_builder import (
     render_request_as_markdown,
     validate_data_transfer_request,
 )
-from fink_lsst.bulk_transfer.topic_registry import new_full_night_topic_template, render_download_command
+from fink_lsst.bulk_transfer.topic_registry import DEFAULT_TRANSFER_CONSUMERS, new_full_night_topic_template, render_download_command
 from fink_lsst.storage import write_json
 
 
@@ -32,7 +32,7 @@ def main() -> int:
     request["validation_checks"] = validate_data_transfer_request(request)
     topic_template = new_full_night_topic_template(config)
     request["topic_registry_template"] = topic_template
-    request["download_command_template"] = render_download_command(topic_template)
+    request["download_command_template"] = render_download_command(topic_template, project_root, DEFAULT_TRANSFER_CONSUMERS)
 
     (output_dir / "FULL_NIGHT_DATA_TRANSFER_REQUEST.json").write_text(render_request_as_json(request), encoding="utf-8")
     (output_dir / "FULL_NIGHT_DATA_TRANSFER_REQUEST.md").write_text(render_request_as_markdown(request), encoding="utf-8")

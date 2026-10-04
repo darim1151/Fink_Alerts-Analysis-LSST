@@ -10,8 +10,8 @@ from typing import Any
 
 
 LIKELY_MODULES = ("fink_client", "fink-client", "finkclient")
-LIKELY_COMMANDS = ("fink-client", "fink_client", "finkclient", "fink_datatransfer", "fink_client_register")
-LIKELY_ENTRY_POINTS = ("fink_datatransfer", "fink_client_register", "fink_consumer")
+LIKELY_COMMANDS = ("finkctl", "fink-client", "fink_client", "finkclient", "fink_datatransfer", "fink_client_register")
+LIKELY_ENTRY_POINTS = ("finkctl", "fink_datatransfer", "fink_client_register", "fink_consumer")
 
 
 def probe_fink_client_import(module_names: tuple[str, ...] = LIKELY_MODULES) -> dict[str, Any]:

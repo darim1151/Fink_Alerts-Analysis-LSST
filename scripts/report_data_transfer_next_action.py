@@ -100,7 +100,7 @@ def _full_week_decision(project_root: Path, client_probe: dict, entry: dict, fal
         next_action = "Resolve blocking full-week preflight checks before downloading."
     elif raw.get("empty", True):
         value = "ready_for_full_week_download"
-        next_action = f"Run `python scripts/print_data_transfer_download_command.py --topic {entry['topic']}` and execute the printed fink_datatransfer command manually."
+        next_action = f"Run `python scripts/print_data_transfer_download_command.py --topic {entry['topic']}` and execute the printed finkctl transfer command manually."
     elif raw.get("file_count", 0) > 0:
         value = "ready_for_full_week_raw_inspection"
         next_action = f"Run `python scripts/inspect_full_packet_delivery.py --topic {entry['topic']}`."

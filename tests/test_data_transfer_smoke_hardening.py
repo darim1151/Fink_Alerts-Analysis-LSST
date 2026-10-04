@@ -168,14 +168,18 @@ def test_validation_blocks_full_night_when_lag_is_not_zero():
     assert _check(checks, "completeness_claim_allowed")["passed"] is False
 
 
-def test_topic_registry_builds_non_secret_download_command():
+def test_topic_registry_builds_non_secret_download_command(tmp_path):
     entry = new_full_night_topic_template(_config())
     entry["topic"] = "ftransfer_lsst_test"
-    command = build_download_command(entry)
-    assert command[:5] == ["fink_datatransfer", "-survey", "lsst", "-topic", "ftransfer_lsst_test"]
+    command = build_download_command(entry, tmp_path, 2)
+    assert command[:6] == ["finkctl", "transfer", "-survey", "lsst", "-topic", "ftransfer_lsst_test"]
+    assert command[command.index("-nconsumers") + 1] == "2"
     assert "--dump_schemas" in command
     assert "--verbose" in command
-    assert not any("darim" in part for part in command)
+    outdir = command[command.index("-outdir") + 1]
+    assert outdir.startswith(str(tmp_path.resolve()))
+    # The absolute outdir carries the machine's own path; no other token may name the user.
+    assert not any("darim" in part for part in command if part != outdir)
 
 
 def test_diagnostics_on_synthetic_alert_table():

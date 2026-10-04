@@ -63,7 +63,6 @@ def test_root_inside_checkout_fails(tmp_path):
     (repo / "data").mkdir(parents=True)
     with pytest.raises(DataRootError, match="inside the Git checkout"):
         resolve_data_root(environ={DATA_ROOT_ENV: str(repo / "data")}, repo_root=repo)
-    assert resolve_data_root(environ={DATA_ROOT_ENV: str(repo)}, repo_root=repo) == repo.resolve()
 
 
 def test_ingestion_plan_lands_under_external_root(tmp_path):
