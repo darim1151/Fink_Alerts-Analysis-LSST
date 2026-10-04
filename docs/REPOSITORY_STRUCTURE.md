@@ -18,6 +18,8 @@ outputs/                     ignored generated reports/figures/run artifacts
 outputs/maintenance/         lightweight tracked maintenance summaries
 ```
 
+Production data does not have to live in the checkout. When `FINK_LSST_DATA_ROOT` is set, run-manifest `data/` and `outputs/` paths resolve under that directory; see `docs/ARNOR_PRODUCTION_FOUNDATION.md`.
+
 ## What Should Be Committed
 
 - Source code under `src/`.

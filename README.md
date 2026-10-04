@@ -140,7 +140,7 @@ GET /api/v1/schema?endpoint=/api/v1/sources&output-format=json
 
 Bare `GET /api/v1/schema` returns documentation text, not JSON.
 
-All paths are relative by default and should remain inside the repository.
+All paths are relative by default. Locally they resolve inside the repository. For production, set `FINK_LSST_DATA_ROOT` to an absolute directory outside the checkout and run-manifest data paths resolve under it instead; see `docs/ARNOR_PRODUCTION_FOUNDATION.md`.
 
 ## Notes
 

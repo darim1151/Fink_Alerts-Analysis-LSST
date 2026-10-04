@@ -17,10 +17,13 @@ from fink_lsst.bulk_transfer.raw_readiness import classify_raw_readiness
 from fink_lsst.bulk_transfer.run_ingestion import IngestionOptions, ingest_run
 from fink_lsst.bulk_transfer.run_manifest import load_run_manifest, validate_run_manifest
 from fink_lsst.bulk_transfer.validation import validate_run_outputs, write_run_validation_report
+from fink_lsst.data_root import DataRootError, is_external_data_root, resolve_data_root
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED_STAGES = {"validate_manifest", "triage", "inspect_raw", "next_action", "ingest", "validate", "diagnostics", "all"}
+# Legacy helper scripts that still resolve data against the repository checkout.
+REPO_ROOTED_STAGES = {"triage", "inspect_raw", "next_action"}
 
 
 def main() -> int:
@@ -40,9 +43,19 @@ def main() -> int:
         print("ingestion is not implemented in the unified runner yet; use existing guarded pipeline or wait for Checkpoint 9B")
         return 2
 
+    try:
+        data_root = resolve_data_root(repo_root=PROJECT_ROOT)
+    except DataRootError as exc:
+        print(f"error: {exc}")
+        return 2
+    print(f"data_root: {data_root}", file=sys.stderr)
+    if args.stage in REPO_ROOTED_STAGES and is_external_data_root(data_root, PROJECT_ROOT):
+        print(f"error: stage {args.stage!r} still reads data from the repository checkout; unset FINK_LSST_DATA_ROOT to run it")
+        return 2
+
     run_config = _abs(args.run_config)
     manifest = load_run_manifest(run_config)
-    errors, warnings = validate_run_manifest(manifest, project_root=PROJECT_ROOT)
+    errors, warnings = validate_run_manifest(manifest, project_root=data_root)
     for warning in warnings:
         print(f"warning: {warning}")
     if errors:
@@ -51,36 +64,36 @@ def main() -> int:
         return 1
 
     if args.dry_run and args.stage not in {"ingest", "all"}:
-        print(json.dumps(_dry_run_plan(manifest, run_config, args.stage), indent=2, sort_keys=True))
+        print(json.dumps(_dry_run_plan(manifest, run_config, args.stage, data_root), indent=2, sort_keys=True))
         return 0
 
     if args.stage == "validate_manifest":
-        print(json.dumps(_dry_run_plan(manifest, run_config, args.stage), indent=2, sort_keys=True))
+        print(json.dumps(_dry_run_plan(manifest, run_config, args.stage, data_root), indent=2, sort_keys=True))
         return 0
 
     if args.stage in {"ingest", "all"}:
-        result = _run_ingest(manifest, args)
+        result = _run_ingest(manifest, args, data_root)
         compact = _compact_result(result)
         if args.dry_run:
-            compact["dry_run_plan"] = _dry_run_plan(manifest, run_config, args.stage)
+            compact["dry_run_plan"] = _dry_run_plan(manifest, run_config, args.stage, data_root)
         print(json.dumps(compact, indent=2, sort_keys=True))
         if result.get("status") == "dry_run":
             return 0
         if result.get("status") == "refused":
             return 2
         if args.stage == "all":
-            validation_status = _run_validate_from_ingestion(manifest, result)
-            diagnostics_status = _run_diagnostics_from_ingestion(manifest, result)
+            validation_status = _run_validate_from_ingestion(manifest, result, data_root)
+            diagnostics_status = _run_diagnostics_from_ingestion(manifest, result, data_root)
             print(json.dumps({"validation": validation_status, "diagnostics": diagnostics_status}, indent=2, sort_keys=True))
         return 0
 
     if args.stage == "validate":
-        status = _run_validate_existing(manifest)
+        status = _run_validate_existing(manifest, data_root)
         print(json.dumps(status, indent=2, sort_keys=True))
         return 0 if status.get("status") != "failed" else 1
 
     if args.stage == "diagnostics":
-        status = _run_diagnostics_existing(manifest)
+        status = _run_diagnostics_existing(manifest, data_root)
         print(json.dumps(status, indent=2, sort_keys=True))
         return 0
 
@@ -106,7 +119,7 @@ def build_stage_command(stage: str, run_config: Path, write_report: bool) -> lis
     raise ValueError(stage)
 
 
-def _run_ingest(manifest, args) -> dict:
+def _run_ingest(manifest, args, data_root: Path) -> dict:
     options = IngestionOptions(
         allow_partial=args.allow_partial,
         max_files=args.max_files,
@@ -117,15 +130,15 @@ def _run_ingest(manifest, args) -> dict:
         write_report=args.write_report,
         dry_run=args.dry_run,
     )
-    return ingest_run(manifest, PROJECT_ROOT, options)
+    return ingest_run(manifest, data_root, options)
 
 
-def _run_validate_from_ingestion(manifest, ingestion_result: dict) -> dict:
+def _run_validate_from_ingestion(manifest, ingestion_result: dict, data_root: Path) -> dict:
     summary = ingestion_result.get("summary") or {}
     output_dir = summary.get("output_dir")
     if not output_dir:
         return {"status": "skipped", "reason": "no ingestion output directory"}
-    raw_audit = build_raw_audit(PROJECT_ROOT / manifest.paths.raw_dir)
+    raw_audit = build_raw_audit(data_root / manifest.paths.raw_dir)
     report = validate_run_outputs(
         manifest,
         summary.get("processed_artifacts", {}),
@@ -136,7 +149,7 @@ def _run_validate_from_ingestion(manifest, ingestion_result: dict) -> dict:
     return {"status": report.get("validation_status"), "output_dir": output_dir}
 
 
-def _run_diagnostics_from_ingestion(manifest, ingestion_result: dict) -> dict:
+def _run_diagnostics_from_ingestion(manifest, ingestion_result: dict, data_root: Path) -> dict:
     summary = ingestion_result.get("summary") or {}
     output_dir = summary.get("output_dir")
     if not output_dir:
@@ -146,31 +159,31 @@ def _run_diagnostics_from_ingestion(manifest, ingestion_result: dict) -> dict:
         candidate = Path(path)
         if candidate.exists() and candidate.suffix == ".parquet":
             tables[name] = pd.read_parquet(candidate)
-    raw_audit = build_raw_audit(PROJECT_ROOT / manifest.paths.raw_dir)
+    raw_audit = build_raw_audit(data_root / manifest.paths.raw_dir)
     report = build_run_diagnostics(manifest, tables, raw_audit=raw_audit)
     write_diagnostics_report(report, output_dir)
     return {"status": "written", "output_dir": output_dir}
 
 
-def _run_validate_existing(manifest) -> dict:
-    processed_dir = PROJECT_ROOT / manifest.paths.processed_dir
-    output_dir = PROJECT_ROOT / manifest.paths.outputs_dir
+def _run_validate_existing(manifest, data_root: Path) -> dict:
+    processed_dir = data_root / manifest.paths.processed_dir
+    output_dir = data_root / manifest.paths.outputs_dir
     processed_paths = {path.stem: str(path) for path in processed_dir.glob("*.parquet")} if processed_dir.exists() else {}
-    raw_audit = build_raw_audit(PROJECT_ROOT / manifest.paths.raw_dir)
+    raw_audit = build_raw_audit(data_root / manifest.paths.raw_dir)
     report = validate_run_outputs(manifest, processed_paths, raw_audit, {})
     write_run_validation_report(report, output_dir)
     return {"status": report.get("validation_status"), "output_dir": str(output_dir), "tables": sorted(processed_paths)}
 
 
-def _run_diagnostics_existing(manifest) -> dict:
-    processed_dir = PROJECT_ROOT / manifest.paths.processed_dir
-    output_dir = PROJECT_ROOT / manifest.paths.outputs_dir
+def _run_diagnostics_existing(manifest, data_root: Path) -> dict:
+    processed_dir = data_root / manifest.paths.processed_dir
+    output_dir = data_root / manifest.paths.outputs_dir
     tables = {
         path.stem: pd.read_parquet(path)
         for path in processed_dir.glob("*.parquet")
         if path.exists()
     } if processed_dir.exists() else {}
-    raw_audit = build_raw_audit(PROJECT_ROOT / manifest.paths.raw_dir)
+    raw_audit = build_raw_audit(data_root / manifest.paths.raw_dir)
     report = build_run_diagnostics(manifest, tables, raw_audit=raw_audit)
     write_diagnostics_report(report, output_dir)
     return {"status": "written", "output_dir": str(output_dir), "tables": sorted(tables)}
@@ -192,8 +205,8 @@ def _compact_result(result: dict) -> dict:
     return compact
 
 
-def _dry_run_plan(manifest, run_config: Path, stage: str) -> dict:
-    raw_audit = build_raw_audit(PROJECT_ROOT / manifest.paths.raw_dir)
+def _dry_run_plan(manifest, run_config: Path, stage: str, data_root: Path) -> dict:
+    raw_audit = build_raw_audit(data_root / manifest.paths.raw_dir)
     readiness = classify_raw_readiness(
         raw_audit,
         expected_total=manifest.download_evidence.expected_total_messages,
@@ -218,6 +231,7 @@ def _dry_run_plan(manifest, run_config: Path, stage: str) -> dict:
         "stage": stage,
         "run_name": manifest.run_name,
         "run_config": str(run_config),
+        "data_root": str(data_root),
         "topic": manifest.topic,
         "date_window": {"startdate": manifest.startdate, "stopdate": manifest.stopdate},
         "scope": manifest.scope,

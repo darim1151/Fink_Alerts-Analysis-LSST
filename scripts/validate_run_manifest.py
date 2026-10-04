@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fink_lsst.bulk_transfer.run_index import list_runs, load_run_index
 from fink_lsst.bulk_transfer.run_manifest import derive_default_paths, load_run_manifest, validate_run_manifest
+from fink_lsst.data_root import DataRootError, resolve_data_root
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,13 @@ def main() -> int:
     args = parser.parse_args()
     if not args.validate_all and not args.run_config:
         parser.error("provide --run-config or --all")
+    try:
+        data_root = resolve_data_root(repo_root=PROJECT_ROOT)
+    except DataRootError as exc:
+        print(f"error: {exc}")
+        return 2
+    print(f"data_root: {data_root}")
+    print()
 
     paths = []
     if args.validate_all:
@@ -34,13 +42,13 @@ def main() -> int:
         path = Path(item)
         if not path.is_absolute():
             path = PROJECT_ROOT / path
-        errors, warnings = validate_one(path)
+        errors, warnings = validate_one(path, data_root)
         had_errors = had_errors or bool(errors)
         print()
     return 1 if had_errors else 0
 
 
-def validate_one(path: Path) -> tuple[list[str], list[str]]:
+def validate_one(path: Path, data_root: Path) -> tuple[list[str], list[str]]:
     try:
         manifest = load_run_manifest(path)
     except Exception as exc:
@@ -48,7 +56,7 @@ def validate_one(path: Path) -> tuple[list[str], list[str]]:
         print("status: invalid")
         print(f"error: {exc}")
         return [str(exc)], []
-    errors, warnings = validate_run_manifest(manifest, project_root=PROJECT_ROOT)
+    errors, warnings = validate_run_manifest(manifest, project_root=data_root)
     derived_paths = derive_default_paths(manifest, project_root=PROJECT_ROOT)
     print(f"manifest: {path.relative_to(PROJECT_ROOT)}")
     print(f"status: {'invalid' if errors else 'valid'}")

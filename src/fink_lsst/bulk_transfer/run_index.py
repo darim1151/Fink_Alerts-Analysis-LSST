@@ -37,9 +37,18 @@ def find_run(index: dict[str, Any], run_name: str) -> dict[str, Any] | None:
     return {"name": run_name, **record} if isinstance(record, dict) else None
 
 
-def validate_run_index(path: str | Path = DEFAULT_RUN_INDEX_PATH, project_root: str | Path = ".") -> tuple[list[str], list[str]]:
-    """Validate the index and every referenced manifest."""
+def validate_run_index(
+    path: str | Path = DEFAULT_RUN_INDEX_PATH,
+    project_root: str | Path = ".",
+    data_root: str | Path | None = None,
+) -> tuple[list[str], list[str]]:
+    """Validate the index and every referenced manifest.
+
+    Index and manifest files resolve against `project_root` (the checkout);
+    manifest data paths resolve against `data_root`, defaulting to `project_root`.
+    """
     project_root = Path(project_root)
+    data_root = Path(data_root) if data_root is not None else project_root
     index_path = Path(path)
     if not index_path.is_absolute():
         index_path = project_root / index_path
@@ -58,7 +67,7 @@ def validate_run_index(path: str | Path = DEFAULT_RUN_INDEX_PATH, project_root: 
             errors.append(f"{run['name']}: config does not exist: {config}")
             continue
         manifest = load_run_manifest(config_path)
-        manifest_errors, manifest_warnings = validate_run_manifest(manifest, project_root=project_root)
+        manifest_errors, manifest_warnings = validate_run_manifest(manifest, project_root=data_root)
         errors.extend(f"{run['name']}: {item}" for item in manifest_errors)
         warnings.extend(f"{run['name']}: {item}" for item in manifest_warnings)
     return errors, warnings
