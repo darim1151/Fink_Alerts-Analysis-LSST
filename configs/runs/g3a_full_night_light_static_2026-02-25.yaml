@@ -1,0 +1,55 @@
+schema_version: 1
+run_name: g3a_full_night_light_static_2026-02-25
+run_id: ftransfer_lsst_2026-10-04_177446
+survey: lsst
+broker: fink
+topic: ftransfer_lsst_2026-10-04_177446
+batch_id: '40'
+startdate: '2026-02-25'
+stopdate: '2026-02-26'
+date_mode: utc_window
+scope: full_night
+packet_type: light_static
+content: Light static packet
+filters: []
+is_all_alert: true
+expected_nights:
+- '2026-02-25'
+lifecycle_state: topic_registered
+claim_state:
+  all_alert_completeness: blocked
+  night_completeness: blocked
+  week_completeness: unresolved
+paths:
+  raw_dir: data/raw/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
+  processed_dir: data/processed/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
+  outputs_dir: outputs/data_transfer/full_night/2026-02-25_to_2026-02-26/ftransfer_lsst_2026-10-04_177446
+processing:
+  split_by_night: true
+  allow_partial: false
+  max_files: null
+  diagnostics: true
+  validation: true
+  plots: true
+download_evidence:
+  kafka_lag_zero: null
+  expected_total_messages: null
+  terminal_progress_messages: null
+  local_readable_rows: null
+  raw_file_count: null
+  raw_size_bytes: null
+gate: FINK-G3A
+portal_request:
+  config_file: configs/portal_requests/datatransfer_20261004_113217.yml
+  config_sha256: 9e18799ce44a413cbf14ae294dfc61766e973d96ab1b71461cce6dea39f09249
+  portal_dates_inclusive:
+    startdate: '2026-02-25'
+    stopdate: '2026-02-25'
+  portal_estimated_alerts: 798047
+  submitted_by_user_utc: '2026-10-04'
+notes: FINK-G3A one-night Light Static canary. Portal request selected one
+  observing date (2026-02-25 to 2026-02-25 inclusive in the portal config), which
+  the repository encodes as the half-open window 2026-02-25 to 2026-02-26. No tags,
+  filters, blocks, catalogue or extra SQL. portal_estimated_alerts is the portal's
+  statistical gauge estimate, not an expected message count. No download evidence
+  observed yet.

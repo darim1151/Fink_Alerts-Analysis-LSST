@@ -116,6 +116,7 @@ def test_run_index_loading_and_summary():
         "smoke_in_tns_2026-02-25",
         "full_week_full_packet_2026-02-25_to_2026-03-04",
         "full_week_light_static_2026-02-25_to_2026-03-04",
+        "g3a_full_night_light_static_2026-02-25",
     }
     summaries = summarize_runs("configs/runs/index.yaml")
     assert any(item["packet_type"] == "full" for item in summaries)
