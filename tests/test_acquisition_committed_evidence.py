@@ -37,13 +37,26 @@ def test_month_one_dry_run_evidence():
     assert record.request.portal_startdate == "2026-02-25"
     assert record.request.portal_stopdate == "2026-03-24"
     assert len(record.request.expected_dates) == 28
-    verification = record.last_entry(S.PORTAL_VERIFIED).evidence
-    assert verification["semantic_match"] is True and verification["ui_checks_passed"] is True
-    assert verification["submit_clicked"] is False
-    assert verification["submit_requests_blocked"] == 0
-    assert verification["final_review"]["submit_visible"] is True
-    downloaded = (record.directory / verification["downloaded_config_file"]).read_text(encoding="utf-8")
-    assert compare_portal_configs(compile_portal_config(record.request), parse_portal_config(downloaded)) == []
+    verifications = [entry.evidence for entry in record.entries if entry.to_state == S.PORTAL_VERIFIED]
+    assert len(verifications) == 2  # G3B.0 dry run, then the G3B.0-R2 hardened qualification
+    for verification in verifications:
+        assert verification["semantic_match"] is True and verification["ui_checks_passed"] is True
+        assert verification["submit_clicked"] is False
+        assert verification["submit_requests_blocked"] == 0
+        assert verification["final_review"]["submit_visible"] is True
+        path = verification["downloaded_config_ref"]["path"] if "downloaded_config_ref" in verification else verification["downloaded_config_file"]
+        downloaded = (record.directory / path).read_text(encoding="utf-8")
+        assert compare_portal_configs(compile_portal_config(record.request), parse_portal_config(downloaded)) == []
+
+
+def test_month_one_r2_qualification_is_bound_to_the_remediation_code():
+    record = AcquisitionRegistry(REGISTRY).load(MONTH_ONE)
+    qualification = record.last_entry(S.PORTAL_VERIFIED).evidence
+    assert qualification["code_revision"] == "a9c46bc09826a8a87ac3f516558f5f6f7a9e1759"
+    assert qualification["service_workers"] == "block"
+    assert qualification["initial_submit_callbacks_blocked"] == 1 and qualification["submit_requests_blocked"] == 0
+    assert qualification["context_id"].startswith("playwright-")
+    assert qualification["downloaded_config_ref"]["kind"] == "portal_download"
 
 
 def test_committed_acquisition_files_carry_no_credentials():
