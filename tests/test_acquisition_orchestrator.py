@@ -461,7 +461,7 @@ def test_cli_submit_is_refused_in_this_gate_before_any_side_effect(tmp_path, cap
     assert code == 2
     assert "live submission is not enabled" in (out + err)
     assert not (tmp_path / "acquisitions").exists()
-    assert cli.LIVE_SUBMISSION_ENABLED is False
+    assert cli.live_submission_enabled() is False
 
 
 def test_cli_portal_check_uses_adapter_and_stops_before_submit(tmp_path, capsys, monkeypatch):
@@ -609,7 +609,7 @@ def test_cli_submit_path_refuses_a_non_durable_record_before_opening_the_portal(
         def open(self):
             opened.append(True)
 
-    monkeypatch.setattr(cli, "LIVE_SUBMISSION_ENABLED", True)
+    monkeypatch.setenv(cli.LIVE_SUBMISSION_ENV, "1")
     monkeypatch.setattr(cli, "_make_playwright_portal", lambda **kwargs: TrackingPortal(live_submit_enabled=kwargs["live_submit_enabled"]))
     code, _out, err = _run_cli(["acquire", "--start", "2026-02-25", "--stop", "2026-03-25", "--portal-check", "--submit"], tmp_path, capsys)
     assert code == 2

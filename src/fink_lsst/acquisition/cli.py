@@ -3,7 +3,8 @@
     fink-lsst acquire --start 2026-02-25 --stop 2026-03-25             review only, writes nothing
     fink-lsst acquire --start ... --stop ... --record                   register PLANNED -> PORTAL_PREPARED
     fink-lsst acquire --start ... --stop ... --portal-check             + real portal dry run, stops before Submit
-    fink-lsst acquire --start ... --stop ... --portal-check --submit    refused in this release (see LIVE_SUBMISSION_ENABLED)
+    fink-lsst acquire --start ... --stop ... --portal-check --submit    refused unless FINK_LSST_LIVE_SUBMISSION=1; typed approval
+    fink-lsst acquire ... --portal-check --submit --wait-producer       + keep the browser and poll the Fink producer log
     fink-lsst status [--id ACQUISITION_ID]                              (marks a SUBMITTING left by a dead process SUBMISSION_UNCERTAIN)
     fink-lsst reconcile --id ID --resolution job_found|no_job_created --statement TEXT [--batch-id N] [--topic T]
     fink-lsst unblock --id ID --statement TEXT                          re-verify a request BLOCKED before any submission
@@ -15,7 +16,7 @@ blocks, catalogue or SQL) is fixed; there is deliberately no option to change
 it, to point at another registry, or to point at another submission
 authority (the host's $XDG_STATE_HOME/fink-lsst/submission_authority.sqlite3,
 default ~/.local/state/...). Review, status and portal checks only read the
-authority; nothing in this release writes to it.
+authority; only an approved --submit writes to it.
 """
 
 from __future__ import annotations
@@ -23,10 +24,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import sys
+import time
 from datetime import date
 from pathlib import Path
-from typing import Optional, Sequence, TextIO
+from typing import Mapping, Optional, Sequence, TextIO
 
 from fink_lsst.bulk_transfer.topic_registry import DEFAULT_TOPIC_REGISTRY_PATH
 from fink_lsst.data_root import REPO_ROOT, DataRootError, PathConfinementError, resolve_data_root
@@ -40,10 +43,24 @@ from .registry import DEFAULT_REGISTRY_ROOT, AcquisitionRegistry, RegistryError,
 from .states import AcquisitionState
 
 
-# G3B.0 / G3B.0-R2: Control has not authorized live Fink submission. The
-# guarded path exists and is tested with fakes; enabling it is a reviewed
-# change in a later gate, on the single authorized submission host.
-LIVE_SUBMISSION_ENABLED = False
+# G3B.1A: live Fink submission is off unless the operator sets exactly
+# FINK_LSST_LIVE_SUBMISSION=1 for the one run, on the single authorized
+# submission host. The opt-in only arms the existing guarded path (durable
+# record, portal verification, typed approval, re-verification, authority
+# claim, one-use SubmitAuthorization); it skips none of it.
+LIVE_SUBMISSION_ENV = "FINK_LSST_LIVE_SUBMISSION"
+# Bounded producer-log polling for --wait-producer.
+PRODUCER_POLL_SECONDS = 30.0
+DEFAULT_PRODUCER_TIMEOUT_HOURS = 12.0
+MAX_PRODUCER_TIMEOUT_HOURS = 48.0
+# The fixed Arnor data root (same value as scripts/arnor_production_preflight.py).
+ARNOR_DATA_ROOT = "/astro/store/shire/FINK"
+
+
+def live_submission_enabled(environ: Optional[Mapping[str, str]] = None) -> bool:
+    """True only when FINK_LSST_LIVE_SUBMISSION is exactly "1"."""
+    env = os.environ if environ is None else environ
+    return env.get(LIVE_SUBMISSION_ENV) == "1"
 
 
 class InteractiveApprover:
@@ -84,7 +101,12 @@ def build_parser() -> argparse.ArgumentParser:
     acquire.add_argument("--stop", required=True, help="first night NOT requested, YYYY-MM-DD (exclusive)")
     acquire.add_argument("--record", action="store_true", help="register the request (PLANNED -> PORTAL_PREPARED)")
     acquire.add_argument("--portal-check", action="store_true", help="real portal dry run: upload, verify, download config, stop before Submit")
-    acquire.add_argument("--submit", action="store_true", help="submit after typed confirmation (refused in this release)")
+    acquire.add_argument("--submit", action="store_true", help=f"submit after typed confirmation (refused unless {LIVE_SUBMISSION_ENV}=1)")
+    acquire.add_argument("--wait-producer", action="store_true", help="after --submit, keep the browser open and poll the Fink producer log")
+    acquire.add_argument(
+        "--producer-timeout-hours", type=float, default=DEFAULT_PRODUCER_TIMEOUT_HOURS,
+        help=f"stop polling after this many hours (default {DEFAULT_PRODUCER_TIMEOUT_HOURS:g}, at most {MAX_PRODUCER_TIMEOUT_HOURS:g})",
+    )
     acquire.add_argument("--headed", action="store_true", help="show the browser window during --portal-check")
 
     status = commands.add_parser("status", help="show registered acquisitions")
@@ -148,11 +170,18 @@ def _acquire(orchestrator: AcquisitionOrchestrator, args: argparse.Namespace, as
     if args.submit and not args.portal_check:
         print("error: --submit requires --portal-check (verification and submission happen in one browser session)", file=sys.stderr)
         return 2
+    if args.wait_producer and not args.submit:
+        print("error: --wait-producer requires --submit (the producer log is read in the submitting browser session)", file=sys.stderr)
+        return 2
+    if not 0 < args.producer_timeout_hours <= MAX_PRODUCER_TIMEOUT_HOURS:
+        print(f"error: --producer-timeout-hours must be in (0, {MAX_PRODUCER_TIMEOUT_HOURS:g}]", file=sys.stderr)
+        return 2
+    live = bool(args.submit and live_submission_enabled())
     mode = "submit" if args.submit else "portal_check" if args.portal_check else "record" if args.record else "dry_run"
     plan = orchestrator.plan(args.start, args.stop, as_of=as_of)
     print(orchestrator.render_review(plan, mode=mode), end="")
-    if args.submit and not LIVE_SUBMISSION_ENABLED:
-        print("error: live submission is not enabled in this release (FINK-G3B.0-R2); nothing was recorded, claimed or opened", file=sys.stderr)
+    if args.submit and not live:
+        print(f"error: live submission is not enabled (set {LIVE_SUBMISSION_ENV}=1 for this run on the authorized host); nothing was recorded, claimed or opened", file=sys.stderr)
         return 2
     if mode == "dry_run":
         print("Nothing was written. Add --record to register this request.")
@@ -161,7 +190,7 @@ def _acquire(orchestrator: AcquisitionOrchestrator, args: argparse.Namespace, as
     portal = None
     if mode in {"portal_check", "submit"}:
         try:
-            portal = _make_playwright_portal(headless=not args.headed, live_submit_enabled=bool(args.submit and LIVE_SUBMISSION_ENABLED))
+            portal = _make_playwright_portal(headless=not args.headed, live_submit_enabled=live)
         except PortalAutomationUnavailable as exc:
             print(f"BROWSER_DRY_RUN_NOT_EXECUTED: {exc}", file=sys.stderr)
             return 3
@@ -196,9 +225,52 @@ def _acquire(orchestrator: AcquisitionOrchestrator, args: argparse.Namespace, as
             return 0
         record = orchestrator.submit(record, portal, InteractiveApprover())
         print(f"Submission recorded: {record.acquisition_id} ({record.state.value}) batch={record.batch_id} topic={record.topic}")
-        return 0
+        code = 0
+        if args.wait_producer:
+            code = _wait_producer(orchestrator, record, portal, timeout_hours=args.producer_timeout_hours)
+            record = orchestrator.registry.load(record.acquisition_id)
+        _print_arnor_handoff(record)
+        return code
     finally:
         portal.close()
+
+
+def _wait_producer(orchestrator: AcquisitionOrchestrator, record, portal, *, timeout_hours: float) -> int:
+    """Poll the producer log in the submitting browser session; completion needs the canonical markers."""
+    if record.state != AcquisitionState.TOPIC_IDENTIFIED:
+        print(f"Producer wait skipped: {record.state.value} has no identified topic; reconcile the topic first.", file=sys.stderr)
+        return 4
+    print(f"Waiting for the Fink producer log (every {PRODUCER_POLL_SECONDS:g} s, at most {timeout_hours:g} h); Kafka is not consulted.")
+    record = orchestrator.wait_for_producer(
+        record, portal,
+        timeout_seconds=timeout_hours * 3600,
+        poll_seconds=PRODUCER_POLL_SECONDS,
+        sleep=getattr(portal, "wait", None) or time.sleep,
+        monotonic=time.monotonic,
+    )
+    if record.state == AcquisitionState.PRODUCER_COMPLETE:
+        print("Producer: PRODUCER_COMPLETE ('Data available at topic' and 'End.' observed for this topic)")
+        return 0
+    if record.state == AcquisitionState.BLOCKED:
+        print("Producer: BLOCKED (the portal job log reports a failure); Control review needed", file=sys.stderr)
+        return 1
+    print(f"Producer: completion NOT observed; the record stays {record.state.value}", file=sys.stderr)
+    return 4
+
+
+def _print_arnor_handoff(record) -> None:
+    """Identifiers and the intended Arnor location; runs nothing and prints no endpoint or credential."""
+    raw = f"{ARNOR_DATA_ROOT}/{record.request.expected_raw_dir(record.topic)}" if record.topic else "unknown until a topic is identified"
+    print("Arnor handoff (nothing was transferred; no SSH, finkctl or Kafka was run):")
+    print(f"  acquisition ID:    {record.acquisition_id}")
+    print(f"  batch ID:          {record.batch_id}")
+    print(f"  Kafka topic:       {record.topic}")
+    print(f"  state:             {record.state.value}")
+    print(f"  Arnor raw path:    {raw}")
+    print(f"  transfer command:  not generated at {record.state.value}; the transfer plan becomes ready only at TOPIC_VERIFIED (Kafka topic metadata pre-check)")
+    if record.topic:
+        print(f"  handoff plan:      FINK_LSST_DATA_ROOT={ARNOR_DATA_ROOT} fink-lsst handoff --id {record.acquisition_id}")
+    print(f"  next:              commit and push the registry record {record.directory}")
 
 
 def _status(orchestrator: AcquisitionOrchestrator, args: argparse.Namespace) -> int:

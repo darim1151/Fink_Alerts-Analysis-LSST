@@ -281,6 +281,20 @@ class PlaywrightPortalAdapter:
         except Exception:  # noqa: BLE001 - a lost page means the log is unavailable, not complete
             return ProducerLogObservation(available=False, text="")
 
+    def wait(self, seconds: float) -> None:
+        """Pause between producer-log reads while the page keeps running.
+
+        Waiting through Playwright (not `time.sleep`) lets the request guard
+        keep servicing the page's own requests, so the log keeps updating.
+        """
+        if self._page is None:
+            time.sleep(seconds)
+            return
+        try:
+            self._page.wait_for_timeout(seconds * 1000)
+        except Exception:  # noqa: BLE001 - a lost page shows up as an unavailable log on the next read
+            time.sleep(seconds)
+
     # ------------------------------------------------------------ helpers
 
     def _guard_submit_requests(self, route: Any, request: Any) -> None:

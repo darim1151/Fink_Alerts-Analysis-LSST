@@ -2,7 +2,7 @@
 
 This note explains how a scientific date window becomes a Fink LSST Data Transfer request, a Kafka topic, an Arnor delivery and validation evidence, and which steps are guarded. Code lives in `src/fink_lsst/acquisition/`.
 
-**Status:** planning, recording, the real-portal dry run and all handoff/validation primitives are implemented. **Live submission is disabled** (`LIVE_SUBMISSION_ENABLED = False` in `cli.py`); enabling it is a reviewed change in a later gate. No Arnor transfer is run by this code.
+**Status:** planning, recording, the real-portal dry run and all handoff/validation primitives are implemented. **Live submission is off by default** (G3B.1A): `--submit` is refused unless the run's environment sets exactly `FINK_LSST_LIVE_SUBMISSION=1`. The opt-in only arms the guarded path below; it skips none of its checks. No Arnor transfer is run by this code.
 
 ## Quick start
 
@@ -140,9 +140,10 @@ $XDG_STATE_HOME/fink-lsst/submission_authority.sqlite3   (default ~/.local/state
 | review | `acquire` | nothing | no | no |
 | record | `acquire --record` | registry | no | no |
 | portal dry run | `acquire --portal-check` | registry + evidence | yes | never |
-| submit | `acquire --portal-check --submit` | refused (live submission disabled) | no | no |
+| submit | `acquire --portal-check --submit` | refused without `FINK_LSST_LIVE_SUBMISSION=1` | no | no |
+| submit (armed) | `FINK_LSST_LIVE_SUBMISSION=1 acquire --portal-check --submit [--wait-producer]` | registry + evidence + authority claim | yes | once, after typed approval |
 
-When enabled, a submission runs in one browser context, in this order:
+When armed, a submission runs in one browser context, in this order:
 
 1. no claim in the authority; registry record committed, clean and pushed (`--record`, commit, push first);
 2. portal verification in the current **browser-context generation** (it rotates on every open, configuration upload and page reload, and is cleared on close);
@@ -156,6 +157,8 @@ The adapter context is ephemeral (no storage state) and blocks service workers, 
 ## Producer status
 
 The transfer job logs `Starting to send data to topic <t>` before writing, then `Data available at topic: <t>` and `End.` when done. Only both terminal markers, in order and for the identified topic, give `PRODUCER_COMPLETE`. A lost portal page gives `PRODUCER_UNCONFIRMED`; from there `TOPIC_VERIFIED` needs written fallback evidence (for example Fink support's confirmation, as in G3A). A log row mentioning an error or failure gives `BLOCKED`; an operator may judge it inconclusive (`mark_producer_unconfirmed`, with a statement), which still requires fallback evidence. Only canonical marker text is stored, never raw log rows.
+
+`--wait-producer` (with `--submit`) keeps the submitting browser open and calls `observe_producer` every 30 s, through Playwright so the page keeps updating, until `PRODUCER_COMPLETE` or `BLOCKED`, or until `--producer-timeout-hours` (default 12, at most 48). At the deadline the record keeps its unresolved state (`TOPIC_IDENTIFIED`, `PRODUCER_RUNNING` or `PRODUCER_UNCONFIRMED`) and the command exits 4. Kafka is never consulted. The command then prints the acquisition id, batch id, topic, state and intended Arnor raw path (`/astro/store/shire/FINK/data/raw/data_transfer/...`); the transfer command is not printed, because the plan is ready only at `TOPIC_VERIFIED`.
 
 ## Local vs Arnor responsibilities
 
@@ -205,6 +208,6 @@ The acquisition tests use a deterministic fake portal; they never open a browser
 
 The Month 1 request is registered as `acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b` and was portal-verified without submission in G3B.0, and again under the hardened code in G3B.0-R2. After Control authorizes live submission in a later gate:
 
-1. on the single authorized submission host, enable submission (`LIVE_SUBMISSION_ENABLED`) in a reviewed commit, then commit and push the registry;
-2. `fink-lsst acquire --start 2026-02-25 --stop 2026-03-25 --portal-check --submit` re-verifies the portal in a fresh context, asks for the typed acquisition id, re-observes the form, claims the attempt, submits once and records the batch id and topic;
-3. watch the producer to `PRODUCER_COMPLETE`, record the Kafka watermark pre-check (`TOPIC_VERIFIED`), then run the `handoff` transfer plan on Arnor and record the transfer and the three-way reconciliation. In this release those executor steps are `AcquisitionOrchestrator` methods (`observe_producer`, `record_topic_metadata`, `record_transfer_started`, `record_transfer_result`, `record_delivery_validation`); command-line wrappers belong to the transfer gate.
+1. on the single authorized submission host, commit and push the registry;
+2. `FINK_LSST_LIVE_SUBMISSION=1 fink-lsst acquire --start 2026-02-25 --stop 2026-03-25 --portal-check --submit --wait-producer` re-verifies the portal in a fresh context, asks for the typed acquisition id, re-observes the form, claims the attempt, submits once and records the batch id and topic, then watches the producer log in the same browser;
+3. commit and push the registry record, record the Kafka watermark pre-check (`TOPIC_VERIFIED`), then run the `handoff` transfer plan on Arnor and record the transfer and the three-way reconciliation. In this release those executor steps are `AcquisitionOrchestrator` methods (`observe_producer`, `record_topic_metadata`, `record_transfer_started`, `record_transfer_result`, `record_delivery_validation`); command-line wrappers belong to the transfer gate.

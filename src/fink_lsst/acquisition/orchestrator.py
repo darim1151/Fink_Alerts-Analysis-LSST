@@ -3,7 +3,7 @@
 The orchestrator owns the order of operations and the duplicate-submission
 policy; the state machine and registry enforce the rules underneath it.
 
-Submission sequence (guarded; live use stays disabled until a later gate):
+Submission sequence (guarded; the CLI arms it only with FINK_LSST_LIVE_SUBMISSION=1):
 
 1. the external submission authority must be configured and readable, and
    must hold no attempt for this fingerprint (any error fails closed);
@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -532,6 +533,36 @@ class AcquisitionOrchestrator:
         if status.state == "running" and record.state != S.PRODUCER_RUNNING:
             return self.registry.transition(record, S.PRODUCER_RUNNING, actor="orchestrator", reason="producer started", evidence={"marker": "Starting to send data to topic", "lines": list(status.evidence_lines)})
         return record
+
+    def wait_for_producer(
+        self,
+        record: AcquisitionRecord,
+        portal: PortalAdapter,
+        *,
+        timeout_seconds: float,
+        poll_seconds: float,
+        sleep: Callable[[float], None],
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> AcquisitionRecord:
+        """Poll `observe_producer` in the same browser session until a terminal producer state or the deadline.
+
+        Terminal means PRODUCER_COMPLETE (both canonical markers) or BLOCKED
+        (the log reports a failure). At the deadline the record is left in
+        whatever unresolved state the last observation produced
+        (TOPIC_IDENTIFIED, PRODUCER_RUNNING or PRODUCER_UNCONFIRMED); nothing is
+        inferred from Kafka or from the topic existing.
+        """
+        if poll_seconds <= 0 or timeout_seconds <= 0:
+            raise OrchestrationError("producer polling needs a positive interval and timeout")
+        deadline = monotonic() + timeout_seconds
+        while True:
+            record = self.observe_producer(record, portal)
+            if record.state in {S.PRODUCER_COMPLETE, S.BLOCKED}:
+                return record
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                return record
+            sleep(min(poll_seconds, remaining))
 
     def mark_producer_unconfirmed(self, record: AcquisitionRecord, *, statement: str) -> AcquisitionRecord:
         """Operator judgement that a flagged or missing producer log is inconclusive (BLOCKED -> PRODUCER_UNCONFIRMED)."""
