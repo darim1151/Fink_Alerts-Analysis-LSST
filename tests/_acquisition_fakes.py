@@ -19,6 +19,8 @@ from fink_lsst.acquisition.portal import (
     ProducerLogObservation,
     SubmissionDisabledError,
     SubmitObservation,
+    consume_submit_authorization,
+    scientific_state_from_observation,
 )
 
 
@@ -26,25 +28,36 @@ from fink_lsst.acquisition.portal import (
 class FakePortal:
     """In-memory portal. Tweak attributes to simulate portal behaviour changes."""
 
-    session_id: str = "fake-session-1"
+    name: str = "fake"
     live_submit_enabled: bool = False
     # Optional hooks that rewrite the configuration the portal "normalizes" or displays.
     normalize: Callable[[dict], dict] = lambda mapping: mapping
     display: Callable[[dict], dict] = lambda mapping: mapping
-    submit_behavior: str = "topic"  # topic | batch_only | lost | raise
+    submit_behavior: str = "topic"  # topic | batch_only | topic_without_batch | lost | raise
     batch_id: str = "41"
     topic: str = "ftransfer_lsst_2026-10-05_123456"
     producer_log: Optional[str] = None
     calls: list = field(default_factory=list)
     submit_clicks: int = 0
+    context_id: Optional[str] = None
+    service_worker_policy: str = "block"
+    blocked_submit_requests: int = 0
+    last_authorization: object = None
+    _generation: int = 0
     _loaded: Optional[dict] = None
 
     def open(self) -> None:
         self.calls.append("open")
+        self._rotate()
 
     def upload_config(self, path: Path) -> None:
         self.calls.append("upload")
         self._loaded = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        self._rotate()
+
+    def _rotate(self) -> None:
+        self._generation += 1
+        self.context_id = f"{self.name}-context-{self._generation}"
 
     def observe_form(self) -> PortalFormObservation:
         self.calls.append("observe")
@@ -74,18 +87,28 @@ class FakePortal:
         self.calls.append("final_review")
         return FinalReviewObservation(reached=True, submit_visible=True, submit_enabled=True, download_visible=True)
 
-    def submit(self) -> SubmitObservation:
+    def submit(self, authorization) -> SubmitObservation:
+        """Mirror the adapter contract: one-use, context-bound authorization; state checked at the click."""
         self.calls.append("submit")
+        consume_submit_authorization(authorization)
         if not self.live_submit_enabled:
             raise SubmissionDisabledError("fake portal constructed without live submission")
+        if not self.context_id or authorization.context_id != self.context_id:
+            raise SubmissionDisabledError("authorization belongs to another browser context")
+        self.last_authorization = authorization
+        shown = scientific_state_from_observation(self.observe_form())
         self.submit_clicks += 1
+        if shown.digest() != authorization.approved_state_digest:
+            return SubmitObservation(clicked=True, batch_id=None, topic=None, callback_admitted=False, guard_reason="callback state differs from the canonical request")
         if self.submit_behavior == "raise":
             raise TimeoutError("network response lost after click")
         if self.submit_behavior == "lost":
-            return SubmitObservation(clicked=True, batch_id=None, topic=None, notifications=())
+            return SubmitObservation(clicked=True, batch_id=None, topic=None, callback_admitted=True)
         if self.submit_behavior == "batch_only":
-            return SubmitObservation(clicked=True, batch_id=self.batch_id, topic=None, notifications=("Job submitted",))
-        return SubmitObservation(clicked=True, batch_id=self.batch_id, topic=self.topic, notifications=("Job submitted",))
+            return SubmitObservation(clicked=True, batch_id=self.batch_id, topic=None, notifications=("Job submitted",), callback_admitted=True)
+        if self.submit_behavior == "topic_without_batch":
+            return SubmitObservation(clicked=True, batch_id=None, topic=self.topic, callback_admitted=True)
+        return SubmitObservation(clicked=True, batch_id=self.batch_id, topic=self.topic, notifications=("Job submitted",), callback_admitted=True)
 
     def read_producer_log(self) -> ProducerLogObservation:
         self.calls.append("producer_log")
@@ -95,6 +118,7 @@ class FakePortal:
 
     def close(self) -> None:
         self.calls.append("close")
+        self.context_id = None
 
 
 @dataclass
@@ -131,3 +155,33 @@ def delivery_summary_for(raw_dir: Path, rows_per_file, *, topic: str, expected: 
 
     summary, _lines = build_delivery_evidence(write_raw_parquet(raw_dir, rows_per_file), topic=topic, expected_topic_messages=expected, terminal_committed=committed, terminal_lag=lag)
     return summary
+
+
+class FakeKafkaConsumer:
+    """Metadata-only stand-in: answers `list_topics` / `get_watermark_offsets` for the topics it knows."""
+
+    def __init__(self, topics):
+        self.topics = {name: list(highs) for name, highs in topics.items()}
+        self.queried = []
+
+    def list_topics(self, topic, timeout):
+        self.queried.append(topic)
+        known = self.topics
+
+        class Meta:
+            topics = {topic: type("T", (), {"partitions": {i: None for i in range(len(known[topic]))}, "error": None})()} if topic in known else {}
+
+        return Meta()
+
+    def get_watermark_offsets(self, tp, timeout, cached):
+        return 0, self.topics[tp.topic][tp.partition]
+
+    def consume(self, *args, **kwargs):
+        raise AssertionError("metadata only")
+
+    poll = commit = subscribe = consume
+
+
+class TopicPartition:
+    def __init__(self, topic, partition):
+        self.topic, self.partition = topic, partition

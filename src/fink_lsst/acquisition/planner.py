@@ -150,6 +150,11 @@ class AcquisitionRequest:
     def profile(self) -> ScienceProfile:
         return resolve_profile(self.science_profile)
 
+    def expected_raw_dir(self, topic: str) -> str:
+        """Data-root-relative raw delivery directory for `topic` (same rule as the run manifests)."""
+        topic = validate_path_component(topic, "topic")
+        return f"data/raw/data_transfer/{self.scope}/{self.window.component}/{topic}"
+
     def scientific_identity(self) -> dict[str, Any]:
         return {
             "identity_schema": IDENTITY_SCHEMA_VERSION,

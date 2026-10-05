@@ -1,4 +1,4 @@
-"""Portal adapter safety guard and form-observation checks (FINK-G3B.0); no browser needed."""
+"""Portal adapter safety guard and form-observation checks (FINK-G3B.0, guard updated in G3B.0-R2); no browser needed."""
 
 import json
 from datetime import date
@@ -8,9 +8,9 @@ import pytest
 from _acquisition_fakes import FakePortal
 from fink_lsst.acquisition.orchestrator import AcquisitionOrchestrator, PortalVerificationError
 from fink_lsst.acquisition.planner import build_acquisition_request
-from fink_lsst.acquisition.portal import PortalFormObservation, check_form_observation, observed_dates
+from fink_lsst.acquisition.portal import PortalFormObservation, check_form_observation, classify_dash_request, observed_dates
 from fink_lsst.acquisition.portal_config import compile_portal_config
-from fink_lsst.acquisition.portal_playwright import PlaywrightPortalAdapter, _is_initial_submit_callback
+from fink_lsst.acquisition.portal_playwright import PlaywrightPortalAdapter
 from fink_lsst.acquisition.portal import PortalError, SubmissionDisabledError
 from fink_lsst.acquisition.registry import AcquisitionRegistry
 from fink_lsst.acquisition.states import AcquisitionState as S
@@ -81,15 +81,21 @@ def _dash_body(n_clicks, changed):
     )
 
 
+CALLBACK_URL = "https://lsst.fink-portal.org/_dash-update-component"
+
+
 def test_initial_submit_callback_is_distinguished_from_a_click():
+    def kind(body):
+        return classify_dash_request(CALLBACK_URL, "POST", body).kind
+
     # Shape observed on the live portal right after a configuration upload (component mount).
-    assert _is_initial_submit_callback(_dash_body(MISSING, ["submit_datatransfer.n_clicks"])) is True
-    assert _is_initial_submit_callback(_dash_body(None, [])) is True
-    assert _is_initial_submit_callback(_dash_body(None, ["submit_datatransfer.n_clicks"])) is True
-    assert _is_initial_submit_callback(_dash_body(1, ["submit_datatransfer.n_clicks"])) is False
-    assert _is_initial_submit_callback(_dash_body(2, [])) is False
-    assert _is_initial_submit_callback("submit_datatransfer=1") is False
-    assert _is_initial_submit_callback(json.dumps({"inputs": [], "changedPropIds": ["submit_datatransfer.n_clicks"]})) is False
+    assert kind(_dash_body(MISSING, ["submit_datatransfer.n_clicks"])) == "submit_mount"
+    assert kind(_dash_body(None, [])) == "submit_mount"
+    assert kind(_dash_body(None, ["submit_datatransfer.n_clicks"])) == "submit_mount"
+    assert kind(_dash_body(1, ["submit_datatransfer.n_clicks"])) == "submit_click"
+    assert kind(_dash_body(2, [])) == "submit_click"
+    assert kind("submit_datatransfer=1") == "malformed"
+    assert kind(json.dumps({"inputs": [], "changedPropIds": ["submit_datatransfer.n_clicks"]})) == "malformed"
 
 
 class _Route:
@@ -104,8 +110,8 @@ class _Route:
 
 
 class _Request:
-    def __init__(self, method, body):
-        self.method, self.post_data = method, body
+    def __init__(self, method, body, url=CALLBACK_URL):
+        self.method, self.post_data, self.url = method, body, url
 
 
 def test_unarmed_adapter_aborts_every_submit_callback_and_counts_clicks():
@@ -128,7 +134,7 @@ def test_unarmed_adapter_aborts_every_submit_callback_and_counts_clicks():
 def test_unarmed_adapter_refuses_submit_and_only_targets_the_public_portal():
     adapter = PlaywrightPortalAdapter()
     with pytest.raises(SubmissionDisabledError):
-        adapter.submit()
+        adapter.submit(None)
     with pytest.raises(PortalError):
         PlaywrightPortalAdapter(url="https://example.org/download")
 
@@ -169,17 +175,15 @@ def test_producer_markers_with_log_prefixes_follow_the_fink_job_wording():
     assert classify_producer_log(f"Starting to send data to topic {TOPIC}_schema\n", TOPIC).state == "not_started"
 
 
-def test_armed_adapter_lets_exactly_one_click_through_only_inside_submit():
+def test_armed_adapter_blocks_every_click_outside_an_authorized_submit():
+    """An armed adapter has no standing allowance: only `submit(authorization)` can admit one callback (R1-07)."""
     adapter = PlaywrightPortalAdapter(live_submit_enabled=True)
-    route = _Route()
-    adapter._guard_submit_requests(route, _Request("POST", _dash_body(1, ["submit_datatransfer.n_clicks"])))
-    assert route.action == "abort" and adapter.blocked_submit_requests == 1  # click outside submit() is blocked
-    adapter._submit_request_allowance = 1  # what submit() sets just before its single click
-    for expected in ("continue", "abort"):
+    for _ in range(2):
         route = _Route()
         adapter._guard_submit_requests(route, _Request("POST", _dash_body(1, ["submit_datatransfer.n_clicks"])))
-        assert route.action == expected
+        assert route.action == "abort"
     route = _Route()
     adapter._guard_submit_requests(route, _Request("POST", _dash_body(MISSING, ["submit_datatransfer.n_clicks"])))
     assert route.action == "abort"
     assert adapter.blocked_initial_submit_callbacks == 1 and adapter.blocked_submit_requests == 2
+    assert not hasattr(adapter, "_submit_request_allowance")

@@ -1,4 +1,4 @@
-"""Acquisition state machine and durable registry tests (FINK-G3B.0)."""
+"""Acquisition state machine and durable registry tests (FINK-G3B.0; evidence binding per G3B.0-R2)."""
 
 import json
 from datetime import date
@@ -7,6 +7,13 @@ import pytest
 
 from fink_lsst.acquisition.planner import build_acquisition_request
 from fink_lsst.acquisition.portal_config import compile_portal_config, render_portal_yaml
+from fink_lsst.acquisition.receipts import (
+    PartitionWatermarks,
+    TopicWatermarkObservation,
+    build_topic_metadata_receipt,
+    build_transfer_receipt,
+    receipt_text,
+)
 from fink_lsst.acquisition.registry import (
     AcquisitionRegistry,
     ConcurrentModificationError,
@@ -45,36 +52,89 @@ def _created(tmp_path, start="2026-02-25", stop="2026-03-25"):
     return registry, record
 
 
-def _verification(record, session="session-1"):
+def _write(registry, record, kind, payload, suffix="json"):
+    name = f"{kind}_{registry.evidence_count(record, kind + '_') + 1}.{suffix}"
+    text = payload if isinstance(payload, str) else receipt_text(payload)
+    return registry.write_evidence(record, name, text, kind)
+
+
+def _verification(registry, record, context="ctx-1"):
+    ref = _write(registry, record, "portal_download", render_portal_yaml(compile_portal_config(record.request)), suffix="yml")
     return {
-        "session_id": session,
+        "context_id": context,
         "semantic_match": True,
         "ui_checks_passed": True,
         "final_review_reached": True,
         "submit_clicked": False,
         "expected_config_sha256": record.portal_config_sha256,
-        "downloaded_config_sha256": "a" * 64,
+        "downloaded_config_sha256": ref["sha256"],
+        "downloaded_config_ref": ref,
     }
 
 
-def _to_portal_verified(registry, record, session="session-1"):
+def _to_portal_verified(registry, record, context="ctx-1"):
     record = registry.transition(record, S.PORTAL_PREPARED, actor="orchestrator", reason="compiled", evidence={"portal_config_sha256": record.portal_config_sha256})
-    return registry.transition(record, S.PORTAL_VERIFIED, actor="orchestrator", reason="portal dry run", evidence=_verification(record, session))
+    return registry.transition(record, S.PORTAL_VERIFIED, actor="orchestrator", reason="portal dry run", evidence=_verification(registry, record, context))
 
 
-def _approval(record, session="session-1"):
+def _approval(record, context="ctx-1"):
     return {
         "method": "interactive_tty",
         "approved_fingerprint": record.fingerprint,
         "verification_seq": record.last_entry(S.PORTAL_VERIFIED).seq,
-        "session_id": session,
+        "context_id": context,
+        "presubmit_state_digest": "a" * 64,
     }
 
 
-def _to_submitting(registry, record, session="session-1"):
-    record = _to_portal_verified(registry, record, session)
-    record = registry.transition(record, S.APPROVED, actor="operator", reason="approved", evidence=_approval(record, session))
-    return registry.transition(record, S.SUBMITTING, actor="orchestrator", reason="clicking submit", evidence={"session_id": session, "approval_seq": record.last_entry(S.APPROVED).seq})
+def _to_submitting(registry, record, context="ctx-1"):
+    record = _to_portal_verified(registry, record, context)
+    record = registry.transition(record, S.APPROVED, actor="operator", reason="approved", evidence=_approval(record, context))
+    return registry.transition(record, S.SUBMITTING, actor="orchestrator", reason="clicking submit", evidence={"context_id": context, "approval_seq": record.last_entry(S.APPROVED).seq, "attempt_id": "b" * 32})
+
+
+def _identified(registry, record):
+    record = _to_submitting(registry, record)
+    return registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="portal returned batch and topic", evidence={"batch_id": "41", "topic": TOPIC})
+
+
+def _topic_receipt(record, highs=(10,)):
+    observation = TopicWatermarkObservation(TOPIC, "2026-10-05T01:00:00Z", tuple(PartitionWatermarks(i, 0, h) for i, h in enumerate(highs)))
+    return build_topic_metadata_receipt(record, observation)
+
+
+def _topic_evidence(registry, record, receipt=None, **extra):
+    receipt = receipt if receipt is not None else _topic_receipt(record)
+    return {"receipt": receipt, "receipt_ref": _write(registry, record, "topic_metadata", receipt), **extra}
+
+
+def _running_evidence(record, attempt="c" * 32):
+    return {"topic": TOPIC, "transfer_attempt_id": attempt, "raw_dir": record.request.expected_raw_dir(TOPIC), "command_sha256": "d" * 64, "release": "rev-test"}
+
+
+def _transfer_evidence(registry, record, committed=10, exit_code=0, lag=0):
+    receipt = build_transfer_receipt(record, exit_code=exit_code, terminal_committed=committed, terminal_lag=lag, log_sha256="e" * 64)
+    return {"receipt": receipt, "receipt_ref": _write(registry, record, "transfer", receipt)}
+
+
+def _delivery_evidence(registry, record, rows, expected=10, committed=10, unreadable=0, passed=None):
+    transfer = record.last_entry(S.TRANSFER_COMPLETE).evidence["receipt"]
+    reconciliation = {"expected_topic_messages": expected, "terminal_committed": committed, "terminal_lag": 0, "local_readable_rows": rows}
+    reconciliation["passed"] = (rows == expected == committed and unreadable == 0) if passed is None else passed
+    receipt = {
+        "schema_version": 1, "kind": "delivery", "acquisition_id": record.acquisition_id, "fingerprint": record.fingerprint,
+        "batch_id": record.batch_id, "topic": TOPIC, "transfer_attempt_id": transfer["transfer_attempt_id"], "raw_dir": transfer["raw_dir"],
+        "file_count": 2, "readable_rows": rows, "unreadable_files": unreadable, "reconciliation": reconciliation,
+    }
+    return {"receipt": receipt, "receipt_ref": _write(registry, record, "delivery", receipt)}
+
+
+def _to_transfer_complete(registry, record):
+    record = _identified(registry, record)
+    record = registry.transition(record, S.PRODUCER_COMPLETE, actor="orchestrator", reason="log", evidence={"data_available_marker": True, "end_marker": True, "topic": TOPIC})
+    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="kafka metadata", evidence=_topic_evidence(registry, record))
+    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="finkctl started", evidence=_running_evidence(record))
+    return registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="exit 0", evidence=_transfer_evidence(registry, record))
 
 
 # ---------------------------------------------------------------- state machine
@@ -83,14 +143,13 @@ def _to_submitting(registry, record, session="session-1"):
 def test_happy_path_through_delivery_validated_keeps_full_history(tmp_path):
     registry, record = _created(tmp_path)
     assert record.state == S.PLANNED
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="portal returned batch and topic", evidence={"batch_id": "41", "topic": TOPIC})
+    record = _identified(registry, record)
     record = registry.transition(record, S.PRODUCER_RUNNING, actor="orchestrator", reason="log", evidence={"marker": "Starting to send data to topic"})
     record = registry.transition(record, S.PRODUCER_COMPLETE, actor="orchestrator", reason="log", evidence={"data_available_marker": True, "end_marker": True, "topic": TOPIC})
-    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="kafka metadata", evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
-    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="finkctl started", evidence={"topic": TOPIC})
-    record = registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="exit 0", evidence={"exit_code": 0, "terminal_committed": 10, "terminal_lag": 0})
-    record = registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="reconciled", evidence=_delivery(10))
+    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="kafka metadata", evidence=_topic_evidence(registry, record))
+    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="finkctl started", evidence=_running_evidence(record))
+    record = registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="exit 0", evidence=_transfer_evidence(registry, record))
+    record = registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="reconciled", evidence=_delivery_evidence(registry, record, 10))
     reloaded = registry.load(record.acquisition_id)
     assert reloaded.state == S.DELIVERY_VALIDATED
     assert [entry.to_state for entry in reloaded.entries] == [
@@ -116,11 +175,11 @@ def test_evidence_is_required_for_guarded_transitions(tmp_path):
     with pytest.raises(TransitionError, match="portal_config_sha256"):
         registry.transition(record, S.PORTAL_PREPARED, actor="orchestrator", reason="x", evidence={"portal_config_sha256": "0" * 64})
     record = registry.transition(record, S.PORTAL_PREPARED, actor="orchestrator", reason="x", evidence={"portal_config_sha256": record.portal_config_sha256})
-    bad = _verification(record)
+    bad = _verification(registry, record)
     bad["semantic_match"] = False
     with pytest.raises(TransitionError):
         registry.transition(record, S.PORTAL_VERIFIED, actor="orchestrator", reason="x", evidence=bad)
-    bad = _verification(record)
+    bad = _verification(registry, record)
     bad["submit_clicked"] = True
     with pytest.raises(TransitionError):
         registry.transition(record, S.PORTAL_VERIFIED, actor="orchestrator", reason="x", evidence=bad)
@@ -134,8 +193,12 @@ def test_approval_must_match_fingerprint_and_latest_verification(tmp_path):
     with pytest.raises(TransitionError, match="fingerprint"):
         registry.transition(record, S.APPROVED, actor="operator", reason="x", evidence=wrong)
     wrong = _approval(record)
-    wrong["session_id"] = "other-session"
-    with pytest.raises(TransitionError, match="session"):
+    wrong["context_id"] = "other-context"
+    with pytest.raises(TransitionError, match="context"):
+        registry.transition(record, S.APPROVED, actor="operator", reason="x", evidence=wrong)
+    wrong = _approval(record)
+    del wrong["presubmit_state_digest"]
+    with pytest.raises(TransitionError, match="pre-submit"):
         registry.transition(record, S.APPROVED, actor="operator", reason="x", evidence=wrong)
     wrong = _approval(record)
     wrong["method"] = "absence_of_dry_run_flag"
@@ -153,57 +216,35 @@ def test_topic_must_look_like_an_lsst_data_transfer_topic(tmp_path):
 
 def test_producer_complete_requires_terminal_markers(tmp_path):
     registry, record = _created(tmp_path)
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="x", evidence={"batch_id": "41", "topic": TOPIC})
+    record = _identified(registry, record)
     record = registry.transition(record, S.PRODUCER_RUNNING, actor="orchestrator", reason="x", evidence={"marker": "Starting to send data to topic"})
     with pytest.raises(TransitionError):
         registry.transition(record, S.PRODUCER_COMPLETE, actor="orchestrator", reason="browser lost", evidence={"data_available_marker": True, "end_marker": False, "topic": TOPIC})
     record = registry.transition(record, S.PRODUCER_UNCONFIRMED, actor="orchestrator", reason="portal log unavailable", evidence={"last_observed": "Starting to send data to topic"})
     with pytest.raises(TransitionError, match="fallback"):
-        registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
+        registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence=_topic_evidence(registry, record))
     record = registry.transition(
-        record,
-        S.TOPIC_VERIFIED,
-        actor="executor",
-        reason="fallback evidence",
-        evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}], "fallback_evidence": "Fink support confirmed batch 41 completed"},
+        record, S.TOPIC_VERIFIED, actor="executor", reason="fallback evidence",
+        evidence=_topic_evidence(registry, record, fallback_evidence="Fink support confirmed batch 41 completed"),
     )
     assert record.state == S.TOPIC_VERIFIED
 
 
 def test_delivery_validated_requires_exact_three_way_reconciliation(tmp_path):
     registry, record = _created(tmp_path)
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="x", evidence={"batch_id": "41", "topic": TOPIC})
-    record = registry.transition(record, S.PRODUCER_COMPLETE, actor="orchestrator", reason="x", evidence={"data_available_marker": True, "end_marker": True, "topic": TOPIC})
-    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
-    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="x", evidence={"topic": TOPIC})
-    record = registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="x", evidence={"exit_code": 0, "terminal_committed": 10, "terminal_lag": 0})
-    forged = _delivery(9)
-    forged["reconciliation"]["passed"] = True
+    record = _to_transfer_complete(registry, record)
     with pytest.raises(TransitionError):
-        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=forged)
-    mismatched = _delivery(10)
-    mismatched["reconciliation"]["terminal_committed"] = mismatched["delivery_summary"]["reconciliation"]["terminal_committed"] = 11
-    with pytest.raises(TransitionError, match="recorded pre-check and transfer"):
-        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=mismatched)
-    unreadable = _delivery(10)
-    unreadable["delivery_summary"]["unreadable_files"] = 2
+        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=_delivery_evidence(registry, record, 9, passed=True))
+    with pytest.raises(TransitionError, match="recorded pre-check, transfer"):
+        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=_delivery_evidence(registry, record, 11, committed=11, expected=11))
     with pytest.raises(TransitionError):
-        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=unreadable)
-    no_summary = {"reconciliation": _delivery(10)["reconciliation"]}
+        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=_delivery_evidence(registry, record, 10, unreadable=2, passed=True))
+    no_ref = _delivery_evidence(registry, record, 10)
+    del no_ref["receipt_ref"]
     with pytest.raises(TransitionError):
-        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=no_summary)
-    record = registry.transition(record, S.RECONCILIATION_FAILED, actor="executor", reason="rows short", evidence=_delivery(9))
+        registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=no_ref)
+    record = registry.transition(record, S.RECONCILIATION_FAILED, actor="executor", reason="rows short", evidence=_delivery_evidence(registry, record, 9))
     assert record.state == S.RECONCILIATION_FAILED
-
-
-def _delivery(local_rows, expected=10, committed=10):
-    reconciliation = {"passed": local_rows == expected == committed, "expected_topic_messages": expected, "terminal_committed": committed, "terminal_lag": 0, "local_readable_rows": local_rows}
-    return {
-        "reconciliation": dict(reconciliation),
-        "delivery_summary": {"topic": TOPIC, "readable_rows": local_rows, "unreadable_files": 0, "reconciliation": dict(reconciliation)},
-    }
 
 
 def test_no_path_reaches_topic_dependent_states_without_an_identified_topic(tmp_path):
@@ -212,26 +253,32 @@ def test_no_path_reaches_topic_dependent_states_without_an_identified_topic(tmp_
     record = registry.transition(record, S.SUBMITTED, actor="orchestrator", reason="batch only", evidence={"batch_id": "41"})
     record = registry.transition(record, S.TOPIC_TIMEOUT, actor="orchestrator", reason="no topic", evidence={})
     reconciliation = {"resolution": "late_evidence", "statement": "support says done", "fallback_evidence": "support"}
+    forged = {"schema_version": 1, "kind": "topic_metadata", "acquisition_id": record.acquisition_id, "fingerprint": record.fingerprint, "batch_id": "41",
+              "topic": None, "queried_topic": None, "checked_utc": "x", "partitions": [{"partition": 0, "low": 0, "high": 10}], "expected_topic_messages": 10}
     with pytest.raises(TransitionError, match="no LSST topic"):
-        registry.transition(record, S.TOPIC_VERIFIED, actor="reconciliation", reason="x", evidence={**reconciliation, "topic": None, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
+        registry.transition(record, S.TOPIC_VERIFIED, actor="reconciliation", reason="x", evidence={**reconciliation, **_topic_evidence(registry, record, receipt=forged)})
     with pytest.raises(TransitionError, match="no LSST topic"):
         registry.transition(record, S.PRODUCER_COMPLETE, actor="reconciliation", reason="x", evidence={**reconciliation, "topic": None, "data_available_marker": True, "end_marker": True})
 
 
 def test_transfer_and_watermark_evidence_types_are_strict(tmp_path):
     registry, record = _created(tmp_path)
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="x", evidence={"batch_id": "41", "topic": TOPIC})
+    record = _identified(registry, record)
     record = registry.transition(record, S.PRODUCER_COMPLETE, actor="orchestrator", reason="x", evidence={"data_available_marker": True, "end_marker": True, "topic": TOPIC})
+    base = _topic_receipt(record)
     for partitions in ([{"partition": 0, "low": 5, "high": 15}], [{"partition": 0, "low": 0, "high": True}], [{"partition": 0}], [{"partition": 0, "low": 0, "high": 5}, {"partition": 0, "low": 0, "high": 5}]):
-        expected = 10
         with pytest.raises(TransitionError):
-            registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence={"topic": TOPIC, "expected_topic_messages": expected, "partitions": partitions})
-    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
-    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="x", evidence={"topic": TOPIC})
-    for result in ({"exit_code": 0, "terminal_committed": True, "terminal_lag": 0}, {"exit_code": False, "terminal_committed": 10, "terminal_lag": 0}, {"exit_code": 0, "terminal_committed": 10, "terminal_lag": False}):
+            registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence=_topic_evidence(registry, record, receipt={**base, "partitions": partitions}))
+    record = registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence=_topic_evidence(registry, record))
+    for bad in ({"raw_dir": "data/raw/data_transfer/date_range/elsewhere/" + TOPIC}, {"transfer_attempt_id": "short"}, {"command_sha256": None}, {"release": ""}):
         with pytest.raises(TransitionError):
-            registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="x", evidence=result)
+            registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="x", evidence={**_running_evidence(record), **bad})
+    record = registry.transition(record, S.TRANSFER_RUNNING, actor="executor", reason="x", evidence=_running_evidence(record))
+    good = build_transfer_receipt(record, exit_code=0, terminal_committed=10, terminal_lag=0)
+    for bad in ({"terminal_committed": True}, {"exit_code": False}, {"terminal_lag": False}, {"transfer_attempt_id": "f" * 32}, {"raw_dir": "data/raw/data_transfer/other"}):
+        receipt = {**good, **bad}
+        with pytest.raises(TransitionError):
+            registry.transition(record, S.TRANSFER_COMPLETE, actor="executor", reason="x", evidence={"receipt": receipt, "receipt_ref": _write(registry, record, "transfer", receipt)})
 
 
 def test_tuple_and_endpoint_evidence_is_refused(tmp_path):
@@ -262,7 +309,7 @@ def test_hash_consistent_but_invalid_history_is_rejected_on_load(tmp_path):
 
     registry, record = _created(tmp_path)
     record = registry.transition(record, S.PORTAL_PREPARED, actor="orchestrator", reason="x", evidence={"portal_config_sha256": record.portal_config_sha256})
-    forged = _verification(record)
+    forged = _verification(registry, record)
     forged["submit_clicked"] = True
     last = record.entries[-1]
     entry = _seal(StateLogEntry(seq=last.seq + 1, at_utc="2026-10-05T00:59:00Z", from_state=last.to_state, to_state=S.PORTAL_VERIFIED, actor="orchestrator", reason="forged", evidence=forged), last.entry_sha256)
@@ -284,8 +331,7 @@ def test_blocked_can_only_resume_previous_state_or_replan_before_submission(tmp_
 
 def test_post_submission_states_never_return_to_pre_submission(tmp_path):
     registry, record = _created(tmp_path)
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="x", evidence={"batch_id": "41", "topic": TOPIC})
+    record = _identified(registry, record)
     record = registry.transition(record, S.BLOCKED, actor="executor", reason="kafka unreachable", evidence={})
     for target in (S.PLANNED, S.PORTAL_PREPARED, S.PORTAL_VERIFIED, S.APPROVED, S.SUBMITTING):
         with pytest.raises(TransitionError):
@@ -312,8 +358,11 @@ def test_submission_uncertain_requires_explicit_reconciliation(tmp_path):
         registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="auto", evidence={"batch_id": "41", "topic": TOPIC})
     with pytest.raises(TransitionError):
         registry.transition(record, S.SUBMITTING, actor="reconciliation", reason="retry", evidence={})
+    for evidence in ({"resolution": "no_job_created", "portal_config_sha256": record.portal_config_sha256, "statement": "support says no job"}, {"portal_config_sha256": record.portal_config_sha256}):
+        with pytest.raises(TransitionError):  # no negative reopening, ever (R1-03)
+            registry.transition(record, S.PORTAL_PREPARED, actor="reconciliation", reason="x", evidence=evidence)
     with pytest.raises(TransitionError, match="statement"):
-        registry.transition(record, S.PORTAL_PREPARED, actor="reconciliation", reason="x", evidence={"resolution": "no_job_created", "portal_config_sha256": record.portal_config_sha256})
+        registry.transition(record, S.TOPIC_IDENTIFIED, actor="reconciliation", reason="x", evidence={"resolution": "job_found", "batch_id": "41", "topic": TOPIC})
     found = registry.transition(record, S.TOPIC_IDENTIFIED, actor="reconciliation", reason="job found", evidence={"resolution": "job_found", "batch_id": "41", "topic": TOPIC, "statement": "portal batch list shows 41"})
     assert found.state == S.TOPIC_IDENTIFIED
 
@@ -392,11 +441,10 @@ def test_evidence_files_are_write_once(tmp_path):
 
 def test_operator_can_judge_a_blocked_producer_inconclusive(tmp_path):
     registry, record = _created(tmp_path)
-    record = _to_submitting(registry, record)
-    record = registry.transition(record, S.TOPIC_IDENTIFIED, actor="orchestrator", reason="x", evidence={"batch_id": "41", "topic": TOPIC})
+    record = _identified(registry, record)
     record = registry.transition(record, S.BLOCKED, actor="orchestrator", reason="log flagged", evidence={})
     with pytest.raises(TransitionError, match="statement"):
         registry.transition(record, S.PRODUCER_UNCONFIRMED, actor="operator", reason="x", evidence={})
     record = registry.transition(record, S.PRODUCER_UNCONFIRMED, actor="operator", reason="x", evidence={"statement": "benign warning"})
     with pytest.raises(TransitionError, match="fallback"):
-        registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence={"topic": TOPIC, "expected_topic_messages": 10, "partitions": [{"partition": 0, "low": 0, "high": 10}]})
+        registry.transition(record, S.TOPIC_VERIFIED, actor="executor", reason="x", evidence=_topic_evidence(registry, record))

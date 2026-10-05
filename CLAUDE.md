@@ -15,7 +15,8 @@ Tests must stay offline. Never delete or weaken a test to make code pass.
 
 - `src/fink_lsst/data_root.py`: data root and path confinement; every production path goes through `confine`/`confine_tree`.
 - `src/fink_lsst/bulk_transfer/`: manifests (`run_manifest.py`), scopes, topic registry, `finkctl transfer` command generation, raw audit, ingestion, validation.
-- `src/fink_lsst/acquisition/`: guarded range acquisition (profile, planner, portal compiler, state machine and registry, portal adapter, Kafka/Arnor handoff, evidence). See `docs/RANGE_ACQUISITION_ORCHESTRATOR.md`.
+- `src/fink_lsst/acquisition/`: guarded range acquisition (profile, planner, portal compiler, state machine and registry, external submission authority, portal adapter, Kafka/Arnor handoff, receipts and evidence). See `docs/RANGE_ACQUISITION_ORCHESTRATOR.md`.
+- Submission authority: `$XDG_STATE_HOME/fink-lsst/submission_authority.sqlite3` (default `~/.local/state/...`) on the one authorized host. Git is provenance, not authority; never delete or edit the authority, and never point tests at it.
 - `configs/runs/`, `configs/data_transfer_topics.yaml`, `configs/portal_requests/`, `configs/delivery_evidence/`, `configs/acquisitions/`: committed, non-secret provenance.
 - Arnor layout and transfer conventions: `docs/ARNOR_PRODUCTION_FOUNDATION.md`.
 
@@ -33,7 +34,7 @@ Work on the gate branch named by the gate; never commit to `main`; push the bran
 
 ## Actions that need explicit approval
 
-- Submitting a Fink Data Transfer job (live submission is disabled in code until a gate enables it).
+- Submitting a Fink Data Transfer job (live submission is disabled in code until a gate enables it), or editing the submission authority.
 - Running `finkctl transfer`, consuming Kafka, or any write on Arnor.
 - Touching ANTARES, credentials, `~/.finkclient`, or running `finkctl auth show`.
 - Printing or committing Kafka server values, cookies, tokens or browser state.

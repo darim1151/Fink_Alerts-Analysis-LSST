@@ -1,4 +1,4 @@
-"""Orchestration, idempotency and CLI tests with a deterministic fake portal (FINK-G3B.0)."""
+"""Orchestration, idempotency and CLI tests with a deterministic fake portal (FINK-G3B.0; hardened in G3B.0-R2)."""
 
 import io
 import json
@@ -8,8 +8,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from _acquisition_fakes import FakeApprover, FakePortal, delivery_summary_for
+from _acquisition_fakes import FakeApprover, FakeKafkaConsumer, FakePortal, TopicPartition, write_raw_parquet
 from fink_lsst.acquisition import cli
+from fink_lsst.acquisition.authority import SubmissionAuthority
+from fink_lsst.acquisition.handoff import build_transfer_plan
 from fink_lsst.acquisition.orchestrator import (
     AcquisitionOrchestrator,
     ApprovalRefusedError,
@@ -38,10 +40,18 @@ class Clock:
         return f"2026-10-05T00:{self.tick // 60:02d}:{self.tick % 60:02d}Z"
 
 
+def _data_root(tmp_path):
+    root = tmp_path / "FINK"
+    for relative in ("data/raw/data_transfer", "data/processed/data_transfer", "outputs/data_transfer", "manifests", "logs"):
+        (root / relative).mkdir(parents=True, exist_ok=True)
+    return root
+
+
 @pytest.fixture
 def orchestrator(tmp_path):
     registry = AcquisitionRegistry(tmp_path / "acquisitions", clock=Clock())
-    return AcquisitionOrchestrator(registry, topic_registry_path=TOPIC_REGISTRY, clock=Clock(), workdir=tmp_path / "work")
+    authority = SubmissionAuthority(tmp_path / "state" / "submission_authority.sqlite3")
+    return AcquisitionOrchestrator(registry, authority=authority, topic_registry_path=TOPIC_REGISTRY, clock=Clock(), workdir=tmp_path / "work", code_revision=lambda: "rev-test")
 
 
 def _plan(orchestrator, start="2026-02-25", stop="2026-03-25"):
@@ -195,8 +205,8 @@ def test_approval_refusal_or_wrong_fingerprint_does_not_submit(orchestrator):
 
 
 def test_verification_from_another_browser_session_cannot_be_submitted(orchestrator):
-    record, _ = _verified(orchestrator, FakePortal(session_id="dry-run-session"))
-    later = FakePortal(session_id="new-session", live_submit_enabled=True)
+    record, _ = _verified(orchestrator, FakePortal(name="dry-run"))
+    later = FakePortal(name="later", live_submit_enabled=True)
     with pytest.raises(StaleVerificationError):
         orchestrator.submit(record, later, FakeApprover())
     assert later.submit_clicks == 0
@@ -247,26 +257,21 @@ def test_response_loss_after_click_becomes_submission_uncertain_and_never_retrie
 
 
 def test_crash_while_submitting_is_recovered_as_uncertain_not_retried(orchestrator):
-    record, portal = _verified(orchestrator)
+    class DiesDuringClick(FakePortal):
+        def submit(self, authorization):
+            raise SystemExit("process killed while clicking")
 
-    class CrashingApprover(FakeApprover):
-        pass
-
-    # Simulate a process that wrote SUBMITTING and died before recording the outcome.
+    portal = DiesDuringClick(live_submit_enabled=True)
+    record, _ = _verified(orchestrator, portal)
+    with pytest.raises(SystemExit):
+        orchestrator.submit(record, portal, FakeApprover())
     registry = orchestrator.registry
-    approval_evidence = {
-        "method": "interactive_tty",
-        "approved_fingerprint": record.fingerprint,
-        "verification_seq": record.last_entry(S.PORTAL_VERIFIED).seq,
-        "session_id": portal.session_id,
-        "statement": "typed acquisition id",
-    }
-    record = registry.transition(record, S.APPROVED, actor="operator", reason="approved", evidence=approval_evidence)
-    record = registry.transition(record, S.SUBMITTING, actor="orchestrator", reason="clicking", evidence={"session_id": portal.session_id, "approval_seq": record.last_entry(S.APPROVED).seq})
+    assert registry.load(record.acquisition_id).state == S.SUBMITTING
     recovered = orchestrator.recover_interrupted_submission(registry.load(record.acquisition_id))
     assert recovered.state == S.SUBMISSION_UNCERTAIN
+    assert orchestrator.authority.get(record.fingerprint).status == "uncertain"
     with pytest.raises(DuplicateSubmissionError):
-        orchestrator.submit(recovered, FakePortal(live_submit_enabled=True), CrashingApprover())
+        orchestrator.submit(recovered, FakePortal(live_submit_enabled=True), FakeApprover())
 
 
 def test_explicit_reconciliation_paths(orchestrator):
@@ -281,19 +286,20 @@ def test_explicit_reconciliation_paths(orchestrator):
     assert found.last_entry(S.TOPIC_IDENTIFIED).actor == "reconciliation"
 
 
-def test_no_job_created_reconciliation_requires_fresh_verification_and_approval(orchestrator):
+def test_no_job_created_reconciliation_never_reopens_the_request(orchestrator):
+    """G3B.0 allowed `no_job_created` to reopen submission; R1-03 forbids it."""
     record, portal = _verified(orchestrator, FakePortal(live_submit_enabled=True, submit_behavior="lost"))
     with pytest.raises(SubmissionUncertainError):
         orchestrator.submit(record, portal, FakeApprover())
     record = orchestrator.reconcile_submission(orchestrator.registry.load(record.acquisition_id), resolution="no_job_created", statement="portal job list and Fink support show no batch for this request")
-    assert record.state == S.PORTAL_PREPARED
-    fresh = FakePortal(session_id="fresh-session", live_submit_enabled=True)
+    assert record.state == S.BLOCKED
+    fresh = FakePortal(name="fresh", live_submit_enabled=True)
+    with pytest.raises(OrchestrationError):
+        orchestrator.verify_portal(record, fresh)
     with pytest.raises(OrchestrationError):
         orchestrator.submit(record, fresh, FakeApprover())
-    record = orchestrator.verify_portal(record, fresh)
-    record = orchestrator.submit(record, fresh, FakeApprover())
-    assert record.state == S.TOPIC_IDENTIFIED
-    assert sum(1 for entry in record.entries if entry.to_state == S.SUBMITTING) == 2
+    assert fresh.submit_clicks == 0
+    assert sum(1 for entry in orchestrator.registry.load(record.acquisition_id).entries if entry.to_state == S.SUBMITTING) == 1
 
 
 # ---------------------------------------------------------------- producer status
@@ -329,18 +335,21 @@ def test_browser_loss_after_topic_capture_is_not_producer_complete(orchestrator)
     assert record.state == S.PRODUCER_COMPLETE
 
 
-def _drive_to_delivery_validated(orchestrator, record):
-    from fink_lsst.acquisition.handoff import PartitionWatermarks
-
+def _to_transfer_complete(orchestrator, record, highs=(6, 4), committed=10):
     if record.state == S.SUBMITTED:
         raise AssertionError("needs a topic")
-    portal = FakePortal(producer_log=f"Data available at topic: {TOPIC}\nEnd.\n")
-    record = orchestrator.observe_producer(record, portal)
-    record = orchestrator.record_topic_metadata(record, [PartitionWatermarks(0, 0, 6), PartitionWatermarks(1, 0, 4)], checked_utc="2026-10-05T01:00:00Z")
-    record = orchestrator.record_transfer_started(record, note="tmux fink-month1")
-    record = orchestrator.record_transfer_result(record, exit_code=0, terminal_committed=10, terminal_lag=0)
-    summary = delivery_summary_for(orchestrator.workdir / "raw" / TOPIC, [6, 4], topic=TOPIC, expected=10, committed=10)
-    return orchestrator.record_delivery_validation(record, delivery_summary=summary)
+    record = orchestrator.observe_producer(record, FakePortal(producer_log=f"Data available at topic: {TOPIC}\nEnd.\n"))
+    record = orchestrator.record_topic_metadata(record, FakeKafkaConsumer({TOPIC: highs}), topic_partition_factory=TopicPartition)
+    data_root = _data_root(orchestrator.workdir.parent)
+    record = orchestrator.record_transfer_started(record, build_transfer_plan(record, data_root), release="rev-test")
+    return orchestrator.record_transfer_result(record, exit_code=0, terminal_committed=committed, terminal_lag=0, log_sha256="f" * 64)
+
+
+def _drive_to_delivery_validated(orchestrator, record, rows=(6, 4)):
+    record = _to_transfer_complete(orchestrator, record)
+    data_root = _data_root(orchestrator.workdir.parent)
+    write_raw_parquet(data_root / record.request.expected_raw_dir(TOPIC), rows)
+    return orchestrator.record_delivery_validation(record, data_root=data_root)
 
 
 def test_integration_through_delivery_validated_with_fake_components(orchestrator):
@@ -348,29 +357,24 @@ def test_integration_through_delivery_validated_with_fake_components(orchestrato
     record = orchestrator.submit(record, portal, FakeApprover())
     record = _drive_to_delivery_validated(orchestrator, record)
     assert record.state == S.DELIVERY_VALIDATED
-    assert record.last_entry(S.TOPIC_VERIFIED).evidence["expected_topic_messages"] == 10
+    assert record.last_entry(S.TOPIC_VERIFIED).evidence["receipt"]["expected_topic_messages"] == 10
     validated = record.last_entry(S.DELIVERY_VALIDATED).evidence
-    assert validated["delivery_summary"]["readable_rows"] == 10
-    assert (record.directory / validated["delivery_summary"]["evidence_file"]).is_file()
-    assert "shards" not in json.dumps(validated)  # shard digests live in the evidence file, not the log
+    assert validated["receipt"]["readable_rows"] == 10
+    assert (record.directory / validated["receipt_ref"]["path"]).is_file()
+    assert (record.directory / validated["receipt"]["inventory_summary_ref"]["path"]).is_file()
+    assert "shards" not in json.dumps(validated)  # shard digests live in the inventory summary, not the log
 
 
 def test_unreadable_raw_files_prevent_validation(orchestrator):
-    from fink_lsst.acquisition.handoff import PartitionWatermarks
-
     record, portal = _verified(orchestrator)
     record = orchestrator.submit(record, portal, FakeApprover())
-    record = orchestrator.observe_producer(record, FakePortal(producer_log=f"Data available at topic: {TOPIC}\nEnd.\n"))
-    record = orchestrator.record_topic_metadata(record, [PartitionWatermarks(0, 0, 10)], checked_utc="2026-10-05T01:00:00Z")
-    record = orchestrator.record_transfer_started(record, note="tmux")
-    record = orchestrator.record_transfer_result(record, exit_code=0, terminal_committed=10, terminal_lag=0)
-    summary = delivery_summary_for(orchestrator.workdir / "raw" / TOPIC, [6, 4], topic=TOPIC, expected=10, committed=10)
-    (orchestrator.workdir / "raw" / TOPIC / "part-9.parquet").write_bytes(b"not parquet")
-    summary["unreadable_files"] = 1
-    with pytest.raises(OrchestrationError):
-        orchestrator.record_delivery_validation(record, delivery_summary={**summary, "topic": "ftransfer_lsst_2026-10-05_1"})
-    record = orchestrator.record_delivery_validation(record, delivery_summary=summary)
+    record = _to_transfer_complete(orchestrator, record)
+    data_root = _data_root(orchestrator.workdir.parent)
+    raw = write_raw_parquet(data_root / record.request.expected_raw_dir(TOPIC), [6, 4])
+    (raw / "part-9.parquet").write_bytes(b"not parquet")
+    record = orchestrator.record_delivery_validation(record, data_root=data_root)
     assert record.state == S.RECONCILIATION_FAILED
+    assert record.last_entry(S.RECONCILIATION_FAILED).evidence["receipt"]["unreadable_files"] == 1
 
 
 def test_flagged_producer_log_can_be_judged_inconclusive_but_not_complete(orchestrator):
@@ -383,24 +387,18 @@ def test_flagged_producer_log_can_be_judged_inconclusive_but_not_complete(orches
 
 
 def test_reconciliation_shortfall_is_recorded_not_validated(orchestrator):
-    from fink_lsst.acquisition.handoff import PartitionWatermarks
-
     record, portal = _verified(orchestrator)
     record = orchestrator.submit(record, portal, FakeApprover())
-    record = orchestrator.observe_producer(record, FakePortal(producer_log=f"Data available at topic: {TOPIC}\nEnd.\n"))
-    record = orchestrator.record_topic_metadata(record, [PartitionWatermarks(0, 0, 10)], checked_utc="2026-10-05T01:00:00Z")
-    record = orchestrator.record_transfer_started(record, note="tmux")
-    record = orchestrator.record_transfer_result(record, exit_code=0, terminal_committed=10, terminal_lag=0)
-    summary = delivery_summary_for(orchestrator.workdir / "raw" / TOPIC, [5, 4], topic=TOPIC, expected=10, committed=10)
-    record = orchestrator.record_delivery_validation(record, delivery_summary=summary)
+    record = _drive_to_delivery_validated(orchestrator, record, rows=(5, 4))
     assert record.state == S.RECONCILIATION_FAILED
-    assert record.last_entry(S.RECONCILIATION_FAILED).evidence["reconciliation"]["local_readable_rows"] == 9
+    assert record.last_entry(S.RECONCILIATION_FAILED).evidence["receipt"]["reconciliation"]["local_readable_rows"] == 9
 
 
 # ---------------------------------------------------------------- CLI
 
 
 def _run_cli(argv, tmp_path, capsys, **kwargs):
+    kwargs.setdefault("authority_path", tmp_path / "state" / "submission_authority.sqlite3")
     code = cli.main(argv, registry_root=tmp_path / "acquisitions", topic_registry_path=TOPIC_REGISTRY, as_of=AS_OF, **kwargs)
     captured = capsys.readouterr()
     return code, captured.out, captured.err
@@ -498,9 +496,7 @@ def test_interactive_approver_requires_tty_and_exact_acquisition_id(orchestrator
     assert approval.method == "interactive_tty"
 
 
-def test_cli_handoff_prints_plan_for_identified_topic(tmp_path, capsys, monkeypatch):
-    registry = AcquisitionRegistry(tmp_path / "acquisitions", clock=Clock())
-    orchestrator = AcquisitionOrchestrator(registry, topic_registry_path=TOPIC_REGISTRY, clock=Clock(), workdir=tmp_path / "work")
+def test_cli_handoff_prints_plan_for_identified_topic(tmp_path, capsys, monkeypatch, orchestrator):
     record, portal = _verified(orchestrator)
     record = orchestrator.submit(record, portal, FakeApprover())
     data_root = tmp_path / "FINK"
@@ -561,11 +557,12 @@ def test_an_approval_from_an_ended_session_is_withdrawn_by_reverification(orches
             "method": "interactive_tty",
             "approved_fingerprint": record.fingerprint,
             "verification_seq": record.last_entry(S.PORTAL_VERIFIED).seq,
-            "session_id": portal.session_id,
+            "context_id": portal.context_id,
             "statement": "typed acquisition id",
+            "presubmit_state_digest": "a" * 64,
         },
     )
-    later = FakePortal(session_id="later-session", live_submit_enabled=True)
+    later = FakePortal(name="later", live_submit_enabled=True)
     with pytest.raises(OrchestrationError):
         orchestrator.submit(record, later, FakeApprover())
     record = orchestrator.verify_portal(record, later)

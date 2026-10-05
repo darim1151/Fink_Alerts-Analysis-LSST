@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from _acquisition_fakes import FakeApprover, FakePortal
+from _acquisition_fakes import FakeApprover, FakeKafkaConsumer, FakePortal, TopicPartition
 from fink_lsst.acquisition.evidence import (
     GIT_EVIDENCE_POLICY,
     build_delivery_evidence,
@@ -28,6 +28,7 @@ from fink_lsst.acquisition.handoff import (
     render_transfer_wrapper,
     watermarks_from_consumer,
 )
+from fink_lsst.acquisition.authority import SubmissionAuthority
 from fink_lsst.acquisition.orchestrator import AcquisitionOrchestrator
 from fink_lsst.acquisition.registry import AcquisitionRegistry
 from fink_lsst.bulk_transfer.run_manifest import manifest_from_dict, manifest_to_dict, validate_run_manifest
@@ -51,7 +52,8 @@ class Clock:
 
 def _identified(tmp_path, start="2026-02-25", stop="2026-03-25"):
     registry = AcquisitionRegistry(tmp_path / "acquisitions", clock=Clock())
-    orchestrator = AcquisitionOrchestrator(registry, topic_registry_path=Path("configs/data_transfer_topics.yaml"), clock=Clock(), workdir=tmp_path / "work")
+    authority = SubmissionAuthority(tmp_path / "state" / "submission_authority.sqlite3")
+    orchestrator = AcquisitionOrchestrator(registry, authority=authority, topic_registry_path=Path("configs/data_transfer_topics.yaml"), clock=Clock(), workdir=tmp_path / "work", code_revision=lambda: "rev-test")
     record = orchestrator.record(orchestrator.plan(start, stop, as_of=AS_OF))
     portal = FakePortal(live_submit_enabled=True)
     record = orchestrator.verify_portal(record, portal)
@@ -197,7 +199,7 @@ def test_transfer_plan_reuses_accepted_command_generation(tmp_path):
 def test_transfer_plan_is_ready_only_after_topic_verification(tmp_path):
     orchestrator, record = _identified(tmp_path)
     record = orchestrator.observe_producer(record, FakePortal(producer_log=f"Data available at topic: {TOPIC}\nEnd.\n"))
-    record = orchestrator.record_topic_metadata(record, [PartitionWatermarks(0, 0, 10)], checked_utc="2026-10-05T01:00:00Z")
+    record = orchestrator.record_topic_metadata(record, FakeKafkaConsumer({TOPIC: (10,)}), topic_partition_factory=TopicPartition)
     plan = build_transfer_plan(record, _data_root(tmp_path))
     assert plan.ready_for_transfer is True
     assert plan.expected_topic_messages == 10

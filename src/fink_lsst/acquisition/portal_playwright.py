@@ -2,9 +2,12 @@
 
 Runs on the local/control side only, from a separate environment (see
 docs/RANGE_ACQUISITION_ORCHESTRATOR.md); it is never installed into the Arnor
-science environment. Each adapter uses a fresh, ephemeral browser context:
+science environment. Each `open()` creates a fresh, ephemeral browser context
+with service workers blocked (so request interception sees every request):
 no stored profile, cookies or session state are read or written, and no
-screenshots are taken.
+screenshots are taken. `context_id` names the live context generation; it
+rotates on every open, configuration upload and document (re)load, and is
+None after close, so a verification can never be reused in another state.
 
 Selectors follow the portal's own component ids (`upload_yaml_file`,
 `date-range-picker`, `field_select`, `extra_cond`, `submit_yaml_file`,
@@ -13,23 +16,20 @@ static class names. They locate controls; correctness is decided by the
 semantic checks in `portal.py` and `portal_config.py`, which fail closed when
 something cannot be read.
 
-`submit()` refuses unless the adapter was constructed with
-`live_submit_enabled=True`, clicks "Submit job" at most once per adapter, and
-never retries. Every adapter, armed or not, installs a request guard that
-aborts outgoing POSTs mentioning `submit_datatransfer`. The only exception is
-an armed adapter inside `submit()`, which lets exactly one request carrying
-`n_clicks >= 1` through. The live portal's Dash front end fires that callback
-once without an `n_clicks` value when the uploaded configuration moves the
-form to its final step (component mount, observed in G3B.0); such no-click
-callbacks are counted in `blocked_initial_submit_callbacks`. Anything else
-(a click outside `submit()`, an unparseable body) is counted in
-`blocked_submit_requests`, which the orchestrator treats as a verification
-failure.
+`submit(authorization)` needs a one-use `SubmitAuthorization` from the
+orchestrator for this context and an armed adapter. It re-reads the form and
+refuses if the scientific state differs from the approved one, then clicks
+"Submit job" once. Every request is classified structurally
+(`portal.classify_dash_request`): the only Submit callback ever let through
+is the single one sent during that `submit()` call, with `n_clicks >= 1` and
+form state equal to the canonical request; the allowance is revoked when it
+is used and in `finally`. The portal's mount-time Submit callback (no click
+count) is always aborted and counted in `blocked_initial_submit_callbacks`;
+anything else is aborted and counted in `blocked_submit_requests`.
 """
 
 from __future__ import annotations
 
-import json
 import re
 import time
 import uuid
@@ -42,14 +42,19 @@ from .portal import (
     PortalAutomationUnavailable,
     PortalError,
     PortalFormObservation,
+    PortalScientificState,
     ProducerLogObservation,
     SubmissionDisabledError,
+    SubmitAuthorization,
     SubmitObservation,
+    check_submit_callback_state,
+    classify_dash_request,
+    consume_submit_authorization,
+    scientific_state_from_observation,
 )
 
 
 STEP_DATES, STEP_REDUCE, STEP_CONTENT, STEP_LAUNCH = 1, 2, 3, 4
-SUBMIT_COMPONENT = "submit_datatransfer"
 _DOWNLOAD_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.ya?ml")
 _UNSELECTED_VARIANT = "light"
 
@@ -71,11 +76,14 @@ class PlaywrightPortalAdapter:
         self.channel = channel
         self.live_submit_enabled = bool(live_submit_enabled)
         self.timeout_ms = timeout_ms
-        self.session_id = f"playwright-{uuid.uuid4().hex[:16]}"
+        self.context_id: Optional[str] = None
+        self.service_worker_policy = "block"
         self._submit_clicked = False
         self.blocked_submit_requests = 0
         self.blocked_initial_submit_callbacks = 0
-        self._submit_request_allowance = 0
+        self._armed_authorization: Optional[SubmitAuthorization] = None
+        self._callback_admitted = False
+        self._guard_reason = ""
         self._playwright: Any = None
         self._browser: Any = None
         self._context: Any = None
@@ -95,15 +103,20 @@ class PlaywrightPortalAdapter:
         if self.channel:
             launch["channel"] = self.channel
         self._browser = self._playwright.chromium.launch(**launch)
-        self._context = self._browser.new_context(accept_downloads=True)
+        # Ephemeral context: no storage state; service workers blocked so route() sees every request.
+        self._context = self._browser.new_context(accept_downloads=True, service_workers=self.service_worker_policy)
         self._context.set_default_timeout(self.timeout_ms)
         self._context.route("**/*", self._guard_submit_requests)
         self._page = self._context.new_page()
-        self._page.goto(self.url, wait_until="domcontentloaded")
+        self._page.goto(self.url, wait_until="load")
         self._page.get_by_text("Fink Data Transfer", exact=True).first.wait_for()
         self._page.locator("#upload_yaml_file").wait_for()
+        self._page.on("load", lambda *_: self._new_context_generation())
+        self._new_context_generation()
 
     def close(self) -> None:
+        self.context_id = None
+        self._armed_authorization = None
         for closer in (getattr(self._context, "close", None), getattr(self._browser, "close", None), getattr(self._playwright, "stop", None)):
             if closer is not None:
                 try:
@@ -112,11 +125,16 @@ class PlaywrightPortalAdapter:
                     pass
         self._page = self._context = self._browser = self._playwright = None
 
+    def _new_context_generation(self) -> None:
+        """Invalidate every verification bound to the previous state."""
+        self.context_id = f"playwright-{uuid.uuid4().hex}"
+
     # ------------------------------------------------------------ form
 
     def upload_config(self, path: Path) -> None:
         page = self._require_page()
         page.locator("#upload_yaml_file input[type=file]").set_input_files(str(path))
+        self._new_context_generation()  # the form state was replaced
         self._go_to_step(STEP_DATES)
         self._wait_until(lambda: bool(self._date_hidden_value()), "the uploaded configuration to populate the date range")
 
@@ -191,29 +209,69 @@ class PlaywrightPortalAdapter:
 
     # ------------------------------------------------------------ submission (guarded)
 
-    def submit(self) -> SubmitObservation:
+    def submit(self, authorization: SubmitAuthorization) -> SubmitObservation:
+        """Activate Submit once under a one-use, context-bound authorization."""
+        consume_submit_authorization(authorization)
         if not self.live_submit_enabled:
             raise SubmissionDisabledError("this portal adapter was not armed for live submission")
         if self._submit_clicked:
-            raise SubmissionDisabledError("Submit was already activated in this session; it is never activated twice")
+            raise SubmissionDisabledError("Submit was already activated in this context; it is never activated twice")
+        if not self.context_id or authorization.context_id != self.context_id:
+            raise SubmissionDisabledError("authorization belongs to another browser context; verify again")
         page = self._require_page()
         self._go_to_step(STEP_LAUNCH)
-        button = page.locator("#submit_datatransfer")
-        if not (button.is_visible() and button.is_enabled()):
+        state = self._read_scientific_state()
+        if state.digest() != authorization.approved_state_digest:
+            raise PortalError(f"portal scientific state changed since approval: {state.to_dict()}")
+        self._go_to_step(STEP_LAUNCH)
+        if not self._submit_control_available():
             raise PortalError("Submit control is not available")
         self._submit_clicked = True
-        self._submit_request_allowance = 1
-        button.click()
-        deadline = time.monotonic() + self.timeout_ms / 1000
+        self._callback_admitted, self._guard_reason = False, ""
+        self._armed_authorization = authorization
         batch_id = topic = None
-        while time.monotonic() < deadline:
-            batch_id = (page.locator("#batch_id").text_content() or "").strip() or None
-            topic = (page.locator("#topic_name").text_content() or "").strip() or None
-            if batch_id and topic:
-                break
-            page.wait_for_timeout(1000)
-        notes = tuple(text.strip() for text in page.locator(".mantine-Notification-root").all_inner_texts() if text.strip())
-        return SubmitObservation(clicked=True, batch_id=batch_id, topic=topic, notifications=notes)
+        try:
+            self._click_submit()
+            deadline = time.monotonic() + self.timeout_ms / 1000
+            while time.monotonic() < deadline and self._armed_authorization is not None:
+                page.wait_for_timeout(100)
+            while self._callback_admitted and time.monotonic() < deadline:
+                batch_id, topic = self._read_submission_ids()
+                if batch_id and topic:
+                    break
+                page.wait_for_timeout(1000)
+        finally:
+            self._armed_authorization = None
+        return SubmitObservation(
+            clicked=True,
+            batch_id=batch_id,
+            topic=topic,
+            notifications=self._read_notifications(),
+            callback_admitted=self._callback_admitted,
+            guard_reason=self._guard_reason or ("" if self._callback_admitted else "no Submit callback was observed"),
+        )
+
+    def _read_scientific_state(self) -> PortalScientificState:
+        return scientific_state_from_observation(self.observe_form())
+
+    def _submit_control_available(self) -> bool:
+        button = self._require_page().locator("#submit_datatransfer")
+        return bool(button.is_visible() and button.is_enabled())
+
+    def _click_submit(self) -> None:
+        self._require_page().locator("#submit_datatransfer").click()
+
+    def _read_submission_ids(self) -> tuple:
+        page = self._require_page()
+        batch_id = (page.locator("#batch_id").text_content() or "").strip() or None
+        topic = (page.locator("#topic_name").text_content() or "").strip() or None
+        return batch_id, topic
+
+    def _read_notifications(self) -> tuple:
+        try:
+            return tuple(text.strip() for text in self._require_page().locator(".mantine-Notification-root").all_inner_texts() if text.strip())
+        except Exception:  # noqa: BLE001 - notifications are informational only
+            return ()
 
     def read_producer_log(self) -> ProducerLogObservation:
         if self._page is None:
@@ -226,18 +284,29 @@ class PlaywrightPortalAdapter:
     # ------------------------------------------------------------ helpers
 
     def _guard_submit_requests(self, route: Any, request: Any) -> None:
-        body = (request.post_data or "") if request.method == "POST" else ""
-        if SUBMIT_COMPONENT not in body:
+        try:
+            body = request.post_data if request.method == "POST" else None
+        except Exception:  # noqa: BLE001 - an unreadable body cannot be classified
+            body = "\x00unreadable"
+        decision = classify_dash_request(getattr(request, "url", ""), request.method, body)
+        if decision.kind == "unrelated":
             route.continue_()
             return
-        if _is_initial_submit_callback(body):
+        if decision.kind == "submit_mount":
             self.blocked_initial_submit_callbacks += 1
-        elif self.live_submit_enabled and self._submit_request_allowance > 0 and _submit_click_count(body) >= 1:
-            self._submit_request_allowance -= 1
-            route.continue_()
+            route.abort()
             return
-        else:
-            self.blocked_submit_requests += 1
+        authorization, self._armed_authorization = self._armed_authorization, None  # one shot, used or not
+        if decision.kind == "submit_click" and authorization is not None and self.live_submit_enabled and not self._callback_admitted:
+            problems = check_submit_callback_state(decision.states, authorization.expected_config)
+            if not problems:
+                self._callback_admitted = True
+                route.continue_()
+                return
+            self._guard_reason = "; ".join(problems)
+        elif authorization is not None:
+            self._guard_reason = decision.reason or f"blocked {decision.kind} callback"
+        self.blocked_submit_requests += 1
         route.abort()
 
     def _require_page(self) -> Any:
@@ -290,35 +359,3 @@ class PlaywrightPortalAdapter:
             self._require_page().wait_for_timeout(250)
         raise PortalError(f"timed out waiting for {what}")
 
-
-def _submit_click_count(body: str) -> int:
-    """The Submit `n_clicks` value of a parseable Dash callback, else 0."""
-    try:
-        payload = json.loads(body)
-    except ValueError:
-        return 0
-    for item in (payload.get("inputs") or []) if isinstance(payload, dict) else []:
-        if isinstance(item, dict) and item.get("id") == SUBMIT_COMPONENT and item.get("property") == "n_clicks":
-            value = item.get("value")
-            return value if isinstance(value, int) and not isinstance(value, bool) else 0
-    return 0
-
-
-def _is_initial_submit_callback(body: str) -> bool:
-    """True only for a parseable Dash callback whose Submit `n_clicks` is absent, null or 0.
-
-    Dash lists the input in `changedPropIds` on component mount too, so that
-    field alone does not mean a click; a click always carries `n_clicks >= 1`.
-    """
-    try:
-        payload = json.loads(body)
-    except ValueError:
-        return False
-    if not isinstance(payload, dict):
-        return False
-    clicks = [
-        item.get("value")
-        for item in payload.get("inputs") or []
-        if isinstance(item, dict) and item.get("id") == SUBMIT_COMPONENT and item.get("property") == "n_clicks"
-    ]
-    return bool(clicks) and all(value in (None, 0) for value in clicks)

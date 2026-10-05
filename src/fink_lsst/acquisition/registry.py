@@ -13,7 +13,12 @@ non-secret request provenance):
 The current state is the replay of `state_log.jsonl`; it is never inferred
 from which other files exist. Loading re-derives the request and portal
 configuration from the scientific identity, re-validates every transition
-and the hash chain, and fails on any discrepancy.
+and the hash chain, re-verifies every referenced evidence file (confined
+regular file, sha256, content equal to the logged receipt), and fails on any
+discrepancy. A topic belongs to one acquisition only.
+
+The registry is provenance, not submission authority: whether a request was
+ever submitted is decided by the external `authority.SubmissionAuthority`.
 
 Appends take an exclusive lock on the log, re-read it, and refuse if another
 writer appended since the caller loaded the record. A separate submission
@@ -43,6 +48,7 @@ from fink_lsst.data_root import PathConfinementError, confine, validate_path_com
 
 from .planner import AcquisitionRequest, PlanningError, canonical_json, request_from_dict
 from .portal_config import compile_portal_config, portal_config_sha256, render_portal_yaml
+from .receipts import evidence_ref, verify_evidence_ref
 from .states import AcquisitionState, StateLogEntry, TransitionError, check_transition
 
 
@@ -110,9 +116,13 @@ class AcquisitionRecord:
     @property
     def batch_id(self) -> Optional[str]:
         for entry in reversed(self.entries):
-            if entry.evidence.get("batch_id"):
+            if entry.to_state in {AcquisitionState.SUBMITTED, AcquisitionState.TOPIC_IDENTIFIED} and entry.evidence.get("batch_id"):
                 return str(entry.evidence["batch_id"])
         return None
+
+    @property
+    def request_sha256(self) -> str:
+        return str(self.entries[0].evidence["request_sha256"])
 
 
 def _utc_now() -> str:
@@ -153,7 +163,7 @@ class AcquisitionRegistry:
             raise RegistryError(f"directory {acquisition_id} holds request {request.acquisition_id}")
         if portal_yaml != render_portal_yaml(compile_portal_config(request)):
             raise RegistryError(f"{acquisition_id}: portal_config.yml differs from the compiled canonical request")
-        entries = _replay(lines, {"fingerprint": request.fingerprint, "portal_config_sha256": portal_config_sha256(portal_yaml)})
+        entries = _replay(lines, _guard_context(acquisition_id, directory, request, portal_yaml))
         if not entries:
             raise RegistryError(f"{acquisition_id}: empty state log")
         return AcquisitionRecord(acquisition_id, directory, request, portal_yaml, entries)
@@ -224,6 +234,10 @@ class AcquisitionRegistry:
                     raise ConcurrentModificationError(
                         f"{record.acquisition_id} changed since it was loaded (now {current.state.value}); reload before writing"
                     )
+                if AcquisitionState(target) == AcquisitionState.TOPIC_IDENTIFIED:
+                    owner = self.topic_owner(str(evidence.get("topic")), excluding=record.acquisition_id)
+                    if owner is not None:
+                        raise RegistryError(f"topic {evidence.get('topic')} is already owned by acquisition {owner}")
                 try:
                     check_transition(current.entries, AcquisitionState(target), actor=actor, evidence=evidence, context=_context(current))
                 except (KeyError, TypeError) as exc:
@@ -248,6 +262,18 @@ class AcquisitionRegistry:
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         return self.load(record.acquisition_id)
+
+    def topic_owner(self, topic: str, *, excluding: Optional[str] = None) -> Optional[str]:
+        """The acquisition that has identified `topic`, if any (other than `excluding`)."""
+        for other in self.list_records():
+            if other.acquisition_id != excluding and other.topic == topic:
+                return other.acquisition_id
+        return None
+
+    def write_evidence(self, record: AcquisitionRecord, name: str, content: str, kind: str) -> dict:
+        """Write a write-once evidence file and return its verified reference (path, sha256, kind)."""
+        self.write_evidence_file(record, name, content)
+        return evidence_ref(name, content.encode("utf-8"), kind)
 
     def write_evidence_file(self, record: AcquisitionRecord, name: str, content: str) -> Path:
         """Write a new, never-overwritten evidence file after a credential scan."""
@@ -285,7 +311,18 @@ class AcquisitionRegistry:
 
 
 def _context(record: AcquisitionRecord) -> dict[str, Any]:
-    return {"fingerprint": record.fingerprint, "portal_config_sha256": record.portal_config_sha256}
+    return _guard_context(record.acquisition_id, record.directory, record.request, record.portal_yaml)
+
+
+def _guard_context(acquisition_id: str, directory: Path, request: AcquisitionRequest, portal_yaml: str) -> dict[str, Any]:
+    """Record-level facts the state guards need, including the evidence verifier for this record."""
+    return {
+        "acquisition_id": acquisition_id,
+        "fingerprint": request.fingerprint,
+        "portal_config_sha256": portal_config_sha256(portal_yaml),
+        "expected_raw_dir": request.expected_raw_dir,
+        "verify_ref": lambda ref, kind: verify_evidence_ref(directory, ref, kind=kind),
+    }
 
 
 def _refuse_credentials(payload: Any, label: str) -> None:

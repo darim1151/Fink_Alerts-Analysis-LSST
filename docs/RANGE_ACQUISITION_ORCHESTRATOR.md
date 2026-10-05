@@ -1,8 +1,8 @@
-# Range Acquisition Orchestrator (FINK-G3B.0)
+# Range Acquisition Orchestrator (FINK-G3B.0, hardened in G3B.0-R2)
 
 This note explains how a scientific date window becomes a Fink LSST Data Transfer request, a Kafka topic, an Arnor delivery and validation evidence, and which steps are guarded. Code lives in `src/fink_lsst/acquisition/`.
 
-**Status in G3B.0:** planning, recording, the real-portal dry run and all handoff/validation primitives are implemented. **Live submission is disabled** (`LIVE_SUBMISSION_ENABLED = False` in `cli.py`); enabling it is a reviewed change in a later gate. No Arnor transfer is run by this code.
+**Status:** planning, recording, the real-portal dry run and all handoff/validation primitives are implemented. **Live submission is disabled** (`LIVE_SUBMISSION_ENABLED = False` in `cli.py`); enabling it is a reviewed change in a later gate. No Arnor transfer is run by this code.
 
 ## Quick start
 
@@ -66,10 +66,11 @@ data/raw/data_transfer/date_range/<start>_to_<stop>/<topic>/
 | A science profile | `profile.py` | fixed, pinned scientific content |
 | B request planner | `planner.py` | half-open window, portal dates, canonical request, fingerprint |
 | C portal compiler | `portal_config.py` | compile the portal YAML; parse and compare portal output semantically |
-| D registry / state machine | `states.py`, `registry.py` | transitions with evidence guards; append-only hash-chained log |
-| E portal adapter | `portal.py`, `portal_playwright.py` | drive the public form; form checks; producer-log semantics |
-| F Kafka / Arnor handoff | `handoff.py` | watermark expectation, run manifest, topic entry, transfer plan |
-| G delivery validation | `evidence.py` | three-way reconciliation, scalable integrity evidence |
+| D registry / state machine | `states.py`, `registry.py` | transitions with evidence guards; append-only hash-chained log; evidence re-verified on replay |
+| submission authority | `authority.py` | external SQLite ledger: one permanent claim per fingerprint |
+| E portal adapter | `portal.py`, `portal_playwright.py` | drive the public form; form checks; one-use submit authorization; structural callback guard; producer-log semantics |
+| F Kafka / Arnor handoff | `handoff.py` | watermark observation, run manifest, topic entry, transfer plan |
+| G delivery validation | `receipts.py`, `evidence.py` | acquisition-bound receipts, three-way reconciliation, scalable integrity evidence |
 | orchestration / CLI | `orchestrator.py`, `cli.py` | order of operations, duplicate policy, operator review |
 
 ## Canonical request and fingerprint
@@ -109,13 +110,27 @@ configs/acquisitions/<acquisition_id>/
 
 The state is the replay of `state_log.jsonl` (append-only, hash-chained, fsynced, written under a file lock with a stale-writer check). It is never inferred from which files exist. Evidence files are write-once and every write is scanned for credential-looking keys and values.
 
+## Submission authority (Git is provenance, not authority)
+
+A `git checkout`, `reset`, branch switch or second clone can show an older registry in which a request was never submitted, so Git cannot decide whether a fingerprint may be submitted. That decision belongs to one SQLite database outside every checkout on the **single host authorized to submit**:
+
+```text
+$XDG_STATE_HOME/fink-lsst/submission_authority.sqlite3   (default ~/.local/state/fink-lsst/...)
+```
+
+- The scientific fingerprint is the primary key. The claim is taken atomically (`BEGIN IMMEDIATE`, `synchronous=FULL`) before any Submit callback can be authorized, and it is permanent: triggers refuse deletes and identity changes, batch id and topic are set once, and one topic belongs to one fingerprint.
+- A crash before, during or after the click leaves the claim in place. Git rollback, another clone or a concurrent process cannot clear it; concurrent claims have exactly one winner.
+- A wrong owner, a directory writable by others, a corrupt file or a foreign schema raises `SubmissionAuthorityError`, and nothing is submitted. The directory is `0700`, the file `0600`; only ids, digests, statuses and timestamps are stored.
+- There is no command-line option to use another authority; tests inject temporary files through the Python API, and the test session points `XDG_STATE_HOME` at a temporary directory.
+- Do not delete or copy the authority between hosts. A second submitting host would need a new design, not a second file.
+
 ## Duplicate submission and uncertainty
 
-- The request fingerprint is looked up before anything is submitted. Any request whose history reaches `SUBMITTING` is never submitted automatically again.
-- `SUBMITTING` is written (fsynced) **before** the click. A click whose response is lost, an exception after the click, or a `SUBMITTING` left by a dead process all become `SUBMISSION_UNCERTAIN`. There is no retry.
-- Leaving `SUBMISSION_UNCERTAIN` needs explicit reconciliation with a written statement:
-  - `fink-lsst reconcile --id ID --resolution job_found --batch-id N --topic T --statement "..."`, or
-  - `--resolution no_job_created --statement "..."`, which returns to `PORTAL_PREPARED` and therefore needs a fresh portal verification and a fresh approval.
+- A request with a claim in the authority, or a `SUBMITTING` in its registry history, is never verified or submitted again.
+- A lost response, an exception after the click, a refused callback or a `SUBMITTING` left by a dead process becomes `SUBMISSION_UNCERTAIN`. There is no retry.
+- Leaving `SUBMISSION_UNCERTAIN` needs explicit reconciliation with a written statement, serialized with the authority:
+  - `fink-lsst reconcile --id ID --resolution job_found --batch-id N --topic T --statement "..."` attaches recovered evidence, which must agree with any batch id or topic already observed;
+  - `--resolution no_job_created` is refused when a batch id or topic was observed. Otherwise the statement is recorded and the request stays `BLOCKED` for Control. It never becomes submittable again.
 - `BLOCKED` resumes only into the state it came from. A request blocked before any submission can be re-verified with `fink-lsst unblock --id ID --statement "..."`.
 
 ## Dry run vs submit
@@ -125,11 +140,18 @@ The state is the replay of `state_log.jsonl` (append-only, hash-chained, fsynced
 | review | `acquire` | nothing | no | no |
 | record | `acquire --record` | registry | no | no |
 | portal dry run | `acquire --portal-check` | registry + evidence | yes | never |
-| submit | `acquire --portal-check --submit` | refused in G3B.0 | no | no |
+| submit | `acquire --portal-check --submit` | refused (live submission disabled) | no | no |
 
-When enabled, submission needs `--submit`, a registry record that is committed, clean and pushed (so no Git checkout or stale clone can roll back a recorded submission), a portal verification from the **same** browser session, and an operator typing the exact acquisition id at an interactive terminal; the approval is recorded with the verified fingerprint. Workflow: `--record`, commit and push, then `--portal-check --submit`.
+When enabled, a submission runs in one browser context, in this order:
 
-Every adapter installs a request guard that aborts outgoing requests mentioning `submit_datatransfer`. Only an armed adapter, inside `submit()`, lets exactly one request with `n_clicks >= 1` through; the portal's mount-time callback (no click count) is always aborted. An unarmed adapter refuses `submit()`, and any blocked click-like request fails verification. Fink's private backends (Livy/Spark, Dash endpoints) are never called directly.
+1. no claim in the authority; registry record committed, clean and pushed (`--record`, commit, push first);
+2. portal verification in the current **browser-context generation** (it rotates on every open, configuration upload and page reload, and is cleared on close);
+3. the operator types the exact acquisition id at an interactive terminal;
+4. the form is observed again; any drift (dates, packet, filters, blocks, catalogue, SQL, final review) blocks the request **without** claiming or clicking;
+5. `APPROVED`, then the permanent claim, then `SUBMITTING`, and only then a one-use `SubmitAuthorization` bound to the attempt id, fingerprint, request and config digests, context and approved scientific state;
+6. the adapter spends the authorization, re-reads the form, and clicks once.
+
+The adapter context is ephemeral (no storage state) and blocks service workers, so request interception sees every request. Each request is classified structurally (`portal.classify_dash_request`: JSON parsed, escaped ids recognised, unexpected shapes fail closed). The only Submit callback ever let through is the single one sent during `submit(authorization)`, carrying `n_clicks >= 1` and form state equal to the canonical request: dates, empty filters and blocks, `["Light static packet"]`, no SQL, no catalogue. All of these are in the portal's submit callback. The allowance is revoked when it is used and in `finally`. The portal's mount-time callback (no click count) is always aborted. Fink's private backends (Livy/Spark) are never called.
 
 ## Producer status
 
@@ -149,7 +171,15 @@ Browser tooling is never installed into the Arnor science environment.
 
 ## Delivery validation and integrity evidence
 
-`DELIVERY_VALIDATED` requires `expected_topic_messages == terminal committed == local readable rows` with lag 0, the G3A pattern `798047 = 798047 = 798047`. There is no tolerance. The expected and committed counts must be the ones recorded at `TOPIC_VERIFIED` and `TRANSFER_COMPLETE`, and the local row count must come from a `build_delivery_evidence` summary of the raw directory with zero unreadable files; the full summary is stored as an evidence file and its digest is logged.
+`DELIVERY_VALIDATED` requires `expected_topic_messages == terminal committed == local readable rows` with lag 0 and no unreadable files, the G3A pattern `798047 = 798047 = 798047`. There is no tolerance, and equal counts alone are not enough: each step is a typed receipt (`receipts.py`) whose identity comes from the acquisition record, not from the caller.
+
+| Receipt | Binds |
+|---|---|
+| topic metadata | acquisition id, fingerprint, batch id, topic, **topic actually queried**, partition watermarks, `expected_topic_messages` |
+| transfer | the same identity, transfer attempt id, this acquisition's confined raw directory, command digest, release, exit code, committed, lag, log digest |
+| delivery | the same identity and attempt id, the same raw directory (audited by the builder itself), file count, bytes, readable rows, unreadable files, schema groups, inventory digests, reconciliation |
+
+Receipts are write-once evidence files referenced as `{path, sha256, kind}`. Each registry load re-reads every referenced file (portal downloads included). A missing file, a symlink, a path outside the record, a digest mismatch, or a file differing from the logged receipt makes the load fail. A topic can be identified by one acquisition only.
 
 For orchestrated acquisitions the full per-file inventory (`<sha256>  <relative path>`, sorted, the G3A format) stays on the data plane next to the immutable raw files. Git receives only small evidence: counts, bytes, readable rows, schema groups, the inventory's SHA-256, 256 shard digests keyed by `sha256(relative_path)[:2]` and a root digest (`evidence.py`). The committed G3A inventory is unchanged; the test suite recomputes its recorded digest.
 
@@ -173,8 +203,8 @@ The acquisition tests use a deterministic fake portal; they never open a browser
 
 ## Month 1, eventually
 
-The Month 1 request is registered as `acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b` and was portal-verified in G3B.0 without submission. After Control authorizes live submission in a later gate:
+The Month 1 request is registered as `acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b` and was portal-verified without submission in G3B.0, and again under the hardened code in G3B.0-R2. After Control authorizes live submission in a later gate:
 
-1. enable submission (`LIVE_SUBMISSION_ENABLED`) in a reviewed commit;
-2. `fink-lsst acquire --start 2026-02-25 --stop 2026-03-25 --portal-check --submit` re-verifies the portal in a fresh session, asks for the typed acquisition id, submits once and records the batch id and topic;
+1. on the single authorized submission host, enable submission (`LIVE_SUBMISSION_ENABLED`) in a reviewed commit, then commit and push the registry;
+2. `fink-lsst acquire --start 2026-02-25 --stop 2026-03-25 --portal-check --submit` re-verifies the portal in a fresh context, asks for the typed acquisition id, re-observes the form, claims the attempt, submits once and records the batch id and topic;
 3. watch the producer to `PRODUCER_COMPLETE`, record the Kafka watermark pre-check (`TOPIC_VERIFIED`), then run the `handoff` transfer plan on Arnor and record the transfer and the three-way reconciliation. In this release those executor steps are `AcquisitionOrchestrator` methods (`observe_producer`, `record_topic_metadata`, `record_transfer_started`, `record_transfer_result`, `record_delivery_validation`); command-line wrappers belong to the transfer gate.
