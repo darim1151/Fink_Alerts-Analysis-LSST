@@ -59,6 +59,8 @@ The manifest stores separate claim states for:
 
 Tag-filtered smoke runs block completeness claims. Full-week all-alert runs keep week completeness `unresolved` until strict validation provides evidence. Unknown packet type also keeps claims conservative.
 
+FINK-G3B.0 adds the generic Light Static scope `date_range` (two or more nights, unfiltered, all-alert) and a fourth claim, `range_completeness`. For `date_range` manifests the range claim is `unresolved` by default and `week_completeness` is `blocked`, because a range is not a week; every other scope keeps `range_completeness: blocked` and its historical claims. See `docs/RANGE_ACQUISITION_ORCHESTRATOR.md`.
+
 ## Expected Nights
 
 Expected nights are derived from a half-open UTC window:

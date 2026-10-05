@@ -1,5 +1,7 @@
 # Python/runtime caches
 .venv/
+# Local/control-side portal automation environment (Playwright); never on Arnor
+.venv-portal/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -38,6 +40,18 @@ python_cache/
 fink_client*
 fink-client*
 kafka*.properties
+
+# Browser automation state: profiles, storage state, traces, HAR captures, screenshots
+playwright-profile*/
+*storage_state*.json
+*.har
+playwright-report/
+test-results/
+configs/acquisitions/**/*.png
+configs/acquisitions/**/*.jpg
+
+# Acquisition registry runtime lock files (the registry itself is committed)
+configs/acquisitions/**/.submission.lock
 
 # Root-level generated schema dumps from local Data Transfer runs
 /arrow_schema_*

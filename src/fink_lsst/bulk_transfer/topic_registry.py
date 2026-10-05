@@ -185,6 +185,13 @@ def build_completeness_scope(metadata: dict[str, Any]) -> dict[str, Any]:
             "week_complete": False,
             "reason": "all-alert full-week full-packet scope is recorded; week completeness remains unresolved until validation",
         }
+    if scope == "date_range" and all_alerts and not fink_filter:
+        return {
+            "scope": "date_range",
+            "full_night_complete": False,
+            "range_complete": False,
+            "reason": "all-alert Light Static date-range scope is recorded; range completeness remains unresolved until validation",
+        }
     if scope == "tag_filtered_smoke_delivery" or fink_filter:
         return {
             "scope": "tag_filtered_smoke_delivery",

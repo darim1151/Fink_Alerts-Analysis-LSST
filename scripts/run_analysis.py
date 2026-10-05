@@ -234,6 +234,7 @@ def _dry_run_plan(manifest, run_config: Path, stage: str, data_root: Path, paths
         "all_alert_completeness": manifest.claim_state.all_alert_completeness,
         "night_completeness": manifest.claim_state.night_completeness,
         "week_completeness": manifest.claim_state.week_completeness,
+        "range_completeness": manifest.claim_state.range_completeness,
     }
     return {
         "dry_run": True,

@@ -304,6 +304,17 @@ def validate_nightly_outputs(manifest: RunManifest, nightly_outputs: dict[str, d
 
 def derive_claim_updates(manifest: RunManifest, validation_report: dict[str, Any]) -> dict[str, str]:
     """Derive conservative claim states from manifest and validation evidence."""
+    updates = _derive_scope_claim_updates(manifest, validation_report)
+    if manifest.scope == "date_range":
+        # A generic range is never a week; its own claim stays unresolved here.
+        updates["week_completeness"] = "blocked"
+        updates["range_completeness"] = "blocked" if updates["all_alert_completeness"] == "blocked" else "unresolved"
+    else:
+        updates["range_completeness"] = "blocked"
+    return updates
+
+
+def _derive_scope_claim_updates(manifest: RunManifest, validation_report: dict[str, Any]) -> dict[str, str]:
     partial = _execution_is_partial(validation_report.get("execution_manifest", {}))
     if partial or manifest.filters or not manifest.is_all_alert:
         return {

@@ -25,7 +25,7 @@ from .run_state import (
 SCHEMA_VERSION = 1
 SECRET_MARKERS = ("password", "passwd", "token", "secret", "credential", "sasl", "jaas", "api_key", "apikey")
 PACKET_TYPES = {"light_static", "full", "medium", "unknown"}
-CLAIM_KEYS = ("all_alert_completeness", "night_completeness", "week_completeness")
+CLAIM_KEYS = ("all_alert_completeness", "night_completeness", "week_completeness", "range_completeness")
 PATH_BASES = {
     "raw_dir": Path("data/raw/data_transfer"),
     "processed_dir": Path("data/processed/data_transfer"),
@@ -38,6 +38,8 @@ class ClaimStateSet:
     all_alert_completeness: str = ClaimState.BLOCKED.value
     night_completeness: str = ClaimState.BLOCKED.value
     week_completeness: str = ClaimState.BLOCKED.value
+    # Completeness of a generic date_range window; blocked for every other scope.
+    range_completeness: str = ClaimState.BLOCKED.value
 
 
 @dataclass
@@ -158,8 +160,15 @@ def validate_run_manifest(manifest: RunManifest, project_root: str | Path = ".")
         errors.append("filters imply is_all_alert = false")
     if manifest.is_all_alert and manifest.filters:
         errors.append("all-alert manifests must not have filters")
-    if not manifest.is_all_alert and not manifest.filters and manifest.scope in {DataScope.SINGLE_NIGHT.value, DataScope.MULTI_NIGHT.value, DataScope.FULL_WEEK.value, DataScope.FULL_MONTH.value}:
+    if not manifest.is_all_alert and not manifest.filters and manifest.scope in {DataScope.SINGLE_NIGHT.value, DataScope.MULTI_NIGHT.value, DataScope.FULL_WEEK.value, DataScope.FULL_MONTH.value, DataScope.DATE_RANGE.value}:
         warnings.append("unfiltered non-all-alert manifest has conservative completeness claims")
+    if manifest.scope == DataScope.DATE_RANGE.value:
+        if manifest.packet_type != "light_static":
+            errors.append("date_range scope is defined only for packet_type light_static")
+        if manifest.filters or not manifest.is_all_alert:
+            errors.append("date_range scope is defined only for unfiltered all-alert requests")
+        if len(expected) < 2:
+            errors.append("date_range scope needs at least two nights; use full_night for one night")
 
     for label, value in (("run_name", manifest.run_name), ("run_id", manifest.run_id)):
         if value is not None:
@@ -191,6 +200,8 @@ def validate_run_manifest(manifest: RunManifest, project_root: str | Path = ".")
         warnings.append("validated_with_warnings requires explicit review before allowing claims")
     if derived_claim.week_completeness != ClaimState.ALLOWED.value and manifest.claim_state.week_completeness == ClaimState.ALLOWED.value:
         errors.append("week_completeness cannot be allowed by default")
+    if derived_claim.range_completeness != ClaimState.ALLOWED.value and manifest.claim_state.range_completeness == ClaimState.ALLOWED.value:
+        errors.append("range_completeness cannot be allowed by default")
 
     secret_paths = find_credential_like_entries(payload_for_secret_scan)
     if secret_paths:
@@ -278,6 +289,8 @@ def infer_scope(startdate: str, stopdate: str, filters: list[str] | None, reques
 
 def derive_claim_state(manifest: RunManifest) -> ClaimStateSet:
     """Derive conservative default claim states for a manifest."""
+    if manifest.scope == DataScope.DATE_RANGE.value:
+        return _derive_date_range_claim_state(manifest)
     if raw_state_blocks_science(manifest.lifecycle_state):
         return ClaimStateSet(
             all_alert_completeness=ClaimState.BLOCKED.value,
@@ -306,6 +319,20 @@ def derive_claim_state(manifest: RunManifest) -> ClaimStateSet:
         all_alert_completeness=ClaimState.UNRESOLVED.value,
         night_completeness=ClaimState.UNRESOLVED.value,
         week_completeness=ClaimState.BLOCKED.value,
+    )
+
+
+def _derive_date_range_claim_state(manifest: RunManifest) -> ClaimStateSet:
+    """A date_range window is never a week: its completeness unit is the requested range."""
+    if manifest.filters or not manifest.is_all_alert or manifest.packet_type != "light_static":
+        return ClaimStateSet()
+    if raw_state_blocks_science(manifest.lifecycle_state):
+        return ClaimStateSet(range_completeness=ClaimState.UNRESOLVED.value)
+    return ClaimStateSet(
+        all_alert_completeness=ClaimState.UNRESOLVED.value,
+        night_completeness=ClaimState.UNRESOLVED.value,
+        week_completeness=ClaimState.BLOCKED.value,
+        range_completeness=ClaimState.UNRESOLVED.value,
     )
 
 

@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from typing import Any
 
 
-VALID_SCOPES = {"smoke_delivery", "full_night", "full_week", "full_week_full_packet"}
+VALID_SCOPES = {"smoke_delivery", "full_night", "full_week", "full_week_full_packet", "date_range"}
 SCOPE_ALIASES = {
     "tag_filtered_smoke_delivery": "smoke_delivery",
     "full_night_all_alerts": "full_night",
@@ -73,6 +73,19 @@ SCOPE_POLICIES = {
         content_type="Full packet",
         completeness_default="unresolved",
     ),
+    # Any all-alert Light Static half-open window of two or more nights. Its
+    # completeness unit is the requested range, never a "week".
+    "date_range": ScopePolicy(
+        scope="date_range",
+        path_component="date_range",
+        is_tag_filtered=False,
+        is_all_alert=True,
+        is_single_night=False,
+        is_multi_night=True,
+        packet_type="light_static",
+        content_type="Light static packet",
+        completeness_default="unresolved",
+    ),
 }
 
 
@@ -126,7 +139,10 @@ def scope_paths(scope: str, startdate: str, stopdate: str, topic: str, run_id: s
 def claim_policy_for_scope(scope: str) -> dict[str, Any]:
     """Return a serializable completeness claim policy."""
     policy = get_scope_policy(scope)
-    key = "week_complete_default" if policy.is_multi_night else "night_complete_default"
+    if policy.scope == "date_range":
+        key = "range_complete_default"
+    else:
+        key = "week_complete_default" if policy.is_multi_night else "night_complete_default"
     return {
         key: policy.completeness_default,
         "allow_completeness_only_after_validation": policy.allow_completeness_only_after_validation,

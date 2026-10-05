@@ -99,6 +99,7 @@ def summarize_runs(path: str | Path = DEFAULT_RUN_INDEX_PATH, project_root: str 
                     "all_alert_completeness": manifest.claim_state.all_alert_completeness,
                     "night_completeness": manifest.claim_state.night_completeness,
                     "week_completeness": manifest.claim_state.week_completeness,
+                    "range_completeness": manifest.claim_state.range_completeness,
                 },
             }
         )

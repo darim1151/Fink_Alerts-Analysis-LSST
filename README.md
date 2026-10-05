@@ -270,6 +270,16 @@ python scripts/run_analysis.py \
 
 Partial/debug outputs are not science-ready and cannot support completeness claims.
 
+## Range Acquisition (FINK-G3B.0)
+
+One command plans a Light Static acquisition for a half-open UTC window; the portal dates are derived (inclusive) and the science profile is fixed:
+
+```bash
+python scripts/fink_lsst_cli.py acquire --start 2026-02-25 --stop 2026-03-25
+```
+
+`--record` registers the request under `configs/acquisitions/`, and `--portal-check` runs a real no-submit dry run on the Fink portal from the local `.venv-portal` environment. Live submission is disabled in this release. See `docs/RANGE_ACQUISITION_ORCHESTRATOR.md`.
+
 ## Partial Full-Packet Stress Analysis
 
 Use this path for the partial full-week full-packet dataset. It avoids full nested JSON serialization and skips cutout/heavy fields by default.

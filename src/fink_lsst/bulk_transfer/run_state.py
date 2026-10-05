@@ -38,6 +38,8 @@ class DataScope(str, Enum):
     MULTI_NIGHT = "multi_night"
     FULL_WEEK = "full_week"
     FULL_MONTH = "full_month"
+    # Generic all-alert Light Static half-open window of two or more nights (FINK-G3B.0).
+    DATE_RANGE = "date_range"
     PARTIAL_SCHEMA_ONLY = "partial_schema_only"
 
 

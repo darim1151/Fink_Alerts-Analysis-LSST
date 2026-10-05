@@ -1,0 +1,180 @@
+# Range Acquisition Orchestrator (FINK-G3B.0)
+
+This note explains how a scientific date window becomes a Fink LSST Data Transfer request, a Kafka topic, an Arnor delivery and validation evidence, and which steps are guarded. Code lives in `src/fink_lsst/acquisition/`.
+
+**Status in G3B.0:** planning, recording, the real-portal dry run and all handoff/validation primitives are implemented. **Live submission is disabled** (`LIVE_SUBMISSION_ENABLED = False` in `cli.py`); enabling it is a reviewed change in a later gate. No Arnor transfer is run by this code.
+
+## Quick start
+
+```bash
+# review only: prints the plan, writes nothing
+python scripts/fink_lsst_cli.py acquire --start 2026-02-25 --stop 2026-03-25
+
+# register the request: PLANNED -> PORTAL_PREPARED in configs/acquisitions/
+python scripts/fink_lsst_cli.py acquire --start 2026-02-25 --stop 2026-03-25 --record
+
+# real portal dry run (local portal environment): upload, verify, download config, stop before Submit
+.venv-portal/bin/python scripts/fink_lsst_cli.py acquire --start 2026-02-25 --stop 2026-03-25 --portal-check
+
+python scripts/fink_lsst_cli.py status [--id ACQUISITION_ID]
+python scripts/fink_lsst_cli.py handoff --id ACQUISITION_ID   # prints the Arnor transfer plan; runs nothing
+```
+
+After `pip install -e .` the same commands are available as `fink-lsst acquire ...`.
+
+## Science profile
+
+There is exactly one production profile, `lsst_light_static_all_alerts_v1` (`profile.py`):
+
+| Field | Value |
+|---|---|
+| survey | `lsst` |
+| packet | `Light static packet` |
+| filters / blocks | none |
+| catalog_filename / extra_cond | null |
+
+The CLI has no option that changes it. The profile is a frozen dataclass whose content digest is pinned; a modified copy or an in-place edit raises `ProfileIntegrityError`. A different scientific selection needs a new profile name and version.
+
+Light Static is not "non-SSO": the G3A night held 144,830 rows with `pred.is_sso = True`.
+
+## Dates
+
+The repository uses half-open UTC dates `[start, stop)`. The portal date picker is inclusive ("Pick up start and stop dates (included)"), and Fink's transfer job expands the range with an inclusive `pandas.date_range` (public source: `astrolabsoftware/lsst.fink-portal.org`, `assets/spark_lsst_transfer.py`).
+
+| Repository window | Portal dates | Nights | Scope |
+|---|---|---|---|
+| `[2026-02-25, 2026-02-26)` | 2026-02-25 to 2026-02-25 | 1 | `full_night` |
+| `[2026-02-25, 2026-03-25)` | 2026-02-25 to 2026-03-24 | 28 | `date_range` |
+| `[2026-03-25, 2026-04-25)` | 2026-03-25 to 2026-04-24 | 31 | `date_range` |
+
+Dates must be written `YYYY-MM-DD`; `stop <= start`, malformed dates and windows longer than 92 nights (a typo guard) are rejected. The last requested night must have ended at least one full day earlier (UTC), so Fink's ingestion of it has settled: on 2026-10-05 the latest requestable night is 2026-10-03.
+
+## Scopes and claims
+
+Single nights keep the G3A `full_night` scope and path. Two or more nights use the generic Light Static scope `date_range`:
+
+```text
+data/raw/data_transfer/date_range/<start>_to_<stop>/<topic>/
+```
+
+`date_range` is valid only for unfiltered all-alert Light Static manifests. Its completeness unit is the range, recorded as `claim_state.range_completeness` (default `unresolved`, never `allowed` by default); `week_completeness` stays `blocked` because a range is not a week. `full_week`, `full_week_full_packet` and every historical manifest are unchanged.
+
+## Layers
+
+| Layer | Module | Responsibility |
+|---|---|---|
+| A science profile | `profile.py` | fixed, pinned scientific content |
+| B request planner | `planner.py` | half-open window, portal dates, canonical request, fingerprint |
+| C portal compiler | `portal_config.py` | compile the portal YAML; parse and compare portal output semantically |
+| D registry / state machine | `states.py`, `registry.py` | transitions with evidence guards; append-only hash-chained log |
+| E portal adapter | `portal.py`, `portal_playwright.py` | drive the public form; form checks; producer-log semantics |
+| F Kafka / Arnor handoff | `handoff.py` | watermark expectation, run manifest, topic entry, transfer plan |
+| G delivery validation | `evidence.py` | three-way reconciliation, scalable integrity evidence |
+| orchestration / CLI | `orchestrator.py`, `cli.py` | order of operations, duplicate policy, operator review |
+
+## Canonical request and fingerprint
+
+`request.json` separates the **scientific identity** (survey, profile name, pinned profile digest, scope, half-open window) from **operational metadata** (creation time, generator, as-of date). The fingerprint is `sha256(canonical_json(scientific_identity))` with sorted keys and no whitespace, so key order, formatting, timestamps, machine and invocation path never change it, while a different window or profile version always does. The acquisition id is derived from it, for example `acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b`. Loading a stored request re-derives everything and fails on any difference.
+
+## Portal configuration
+
+The compiled YAML uses the portal's own download layout; the one-night request reproduces the G3A portal file byte for byte. Before anything could be submitted, the portal's own "Download configuration" output and the visible form must both match the request:
+
+- dates, `content == ["Light static packet"]`, no filters, no blocks, no catalogue, no extra SQL;
+- unknown or missing YAML keys, unreadable dates and anything not observable fail closed.
+
+Portal behaviour observed in G3B.0 (live form and public source):
+
+- After a configuration upload the portal downloads `extra_cond: []` instead of `null`; both mean no SQL. At submit time the uploaded form sends an empty `-extraCond=`, which the transfer job skips (`if cond == "": continue`).
+- An empty packet selection means Full packet in the transfer job, so an empty `content` is a mismatch.
+- The portal's Dash front end fires the "Submit job" callback once, without an `n_clicks` value, when an uploaded configuration moves the form to its final step. The server ignores it (`if n_clicks:`). During a dry run the adapter's request guard aborts it anyway.
+- The alert gauge is a statistical estimate (Month 1 showed 1,658,642), never an expected count.
+
+## State machine
+
+```text
+PLANNED -> PORTAL_PREPARED -> PORTAL_VERIFIED -> APPROVED -> SUBMITTING
+  -> SUBMITTED -> TOPIC_IDENTIFIED -> PRODUCER_RUNNING -> PRODUCER_COMPLETE
+  -> TOPIC_VERIFIED -> TRANSFER_RUNNING -> TRANSFER_COMPLETE -> DELIVERY_VALIDATED
+```
+
+Failure and uncertainty states: `BLOCKED`, `PORTAL_FAILURE`, `SUBMISSION_UNCERTAIN`, `PRODUCER_UNCONFIRMED`, `TOPIC_TIMEOUT`, `TRANSFER_INTERRUPTED`, `RECONCILIATION_FAILED`. Every transition must be an allowed edge and carry the evidence its target requires, for example a matching fingerprint for `APPROVED`, both terminal producer markers for `PRODUCER_COMPLETE`, `sum(high - low)` for `TOPIC_VERIFIED`, and exactly equal counts for `DELIVERY_VALIDATED`.
+
+Registry layout (committed; lock files are ignored):
+
+```text
+configs/acquisitions/<acquisition_id>/
+    request.json  portal_config.yml  state_log.jsonl  evidence/
+```
+
+The state is the replay of `state_log.jsonl` (append-only, hash-chained, fsynced, written under a file lock with a stale-writer check). It is never inferred from which files exist. Evidence files are write-once and every write is scanned for credential-looking keys and values.
+
+## Duplicate submission and uncertainty
+
+- The request fingerprint is looked up before anything is submitted. Any request whose history reaches `SUBMITTING` is never submitted automatically again.
+- `SUBMITTING` is written (fsynced) **before** the click. A click whose response is lost, an exception after the click, or a `SUBMITTING` left by a dead process all become `SUBMISSION_UNCERTAIN`. There is no retry.
+- Leaving `SUBMISSION_UNCERTAIN` needs explicit reconciliation with a written statement:
+  - `fink-lsst reconcile --id ID --resolution job_found --batch-id N --topic T --statement "..."`, or
+  - `--resolution no_job_created --statement "..."`, which returns to `PORTAL_PREPARED` and therefore needs a fresh portal verification and a fresh approval.
+- `BLOCKED` resumes only into the state it came from. A request blocked before any submission can be re-verified with `fink-lsst unblock --id ID --statement "..."`.
+
+## Dry run vs submit
+
+| Mode | Command | Writes | Browser | Submit |
+|---|---|---|---|---|
+| review | `acquire` | nothing | no | no |
+| record | `acquire --record` | registry | no | no |
+| portal dry run | `acquire --portal-check` | registry + evidence | yes | never |
+| submit | `acquire --portal-check --submit` | refused in G3B.0 | no | no |
+
+When enabled, submission needs `--submit`, a registry record that is committed, clean and pushed (so no Git checkout or stale clone can roll back a recorded submission), a portal verification from the **same** browser session, and an operator typing the exact acquisition id at an interactive terminal; the approval is recorded with the verified fingerprint. Workflow: `--record`, commit and push, then `--portal-check --submit`.
+
+Every adapter installs a request guard that aborts outgoing requests mentioning `submit_datatransfer`. Only an armed adapter, inside `submit()`, lets exactly one request with `n_clicks >= 1` through; the portal's mount-time callback (no click count) is always aborted. An unarmed adapter refuses `submit()`, and any blocked click-like request fails verification. Fink's private backends (Livy/Spark, Dash endpoints) are never called directly.
+
+## Producer status
+
+The transfer job logs `Starting to send data to topic <t>` before writing, then `Data available at topic: <t>` and `End.` when done. Only both terminal markers, in order and for the identified topic, give `PRODUCER_COMPLETE`. A lost portal page gives `PRODUCER_UNCONFIRMED`; from there `TOPIC_VERIFIED` needs written fallback evidence (for example Fink support's confirmation, as in G3A). A log row mentioning an error or failure gives `BLOCKED`; an operator may judge it inconclusive (`mark_producer_unconfirmed`, with a statement), which still requires fallback evidence. Only canonical marker text is stored, never raw log rows.
+
+## Local vs Arnor responsibilities
+
+| Local / control side (Mac) | Arnor / data plane |
+|---|---|
+| plan, record, registry, Git provenance | `FINK_LSST_DATA_ROOT=/astro/store/shire/FINK` |
+| portal automation (Playwright, `.venv-portal/`) | `finkctl transfer` in a `fink-*` tmux session |
+| approval and reconciliation | raw files (immutable), full sha256 inventory, logs |
+
+Browser tooling is never installed into the Arnor science environment.
+
+`fink-lsst handoff --id ID` builds, from the accepted G2B/G3A primitives, the run manifest, the topic-registry entry, the confined absolute `-outdir`, the log path and `finkctl transfer -survey lsst -topic T -outdir ABS -nconsumers 4 --dump_schemas --verbose`, with the working directory `<root>/manifests/<topic>` because `--dump_schemas` writes to the working directory. It is `ready_for_transfer` only in `TOPIC_VERIFIED`. The pre-check reads partition watermarks with `watermarks_from_consumer` (metadata only, no consume or commit) and records `expected_topic_messages = sum(high - low)`, a transport count, not Rubin completeness. A fresh topic must show low watermark 0 on every partition; anything else (retention already removed messages) blocks `TOPIC_VERIFIED`.
+
+## Delivery validation and integrity evidence
+
+`DELIVERY_VALIDATED` requires `expected_topic_messages == terminal committed == local readable rows` with lag 0, the G3A pattern `798047 = 798047 = 798047`. There is no tolerance. The expected and committed counts must be the ones recorded at `TOPIC_VERIFIED` and `TRANSFER_COMPLETE`, and the local row count must come from a `build_delivery_evidence` summary of the raw directory with zero unreadable files; the full summary is stored as an evidence file and its digest is logged.
+
+For orchestrated acquisitions the full per-file inventory (`<sha256>  <relative path>`, sorted, the G3A format) stays on the data plane next to the immutable raw files. Git receives only small evidence: counts, bytes, readable rows, schema groups, the inventory's SHA-256, 256 shard digests keyed by `sha256(relative_path)[:2]` and a root digest (`evidence.py`). The committed G3A inventory is unchanged; the test suite recomputes its recorded digest.
+
+## Local portal environment
+
+```bash
+~/.local/bin/python3.11 -m venv .venv-portal
+.venv-portal/bin/python -m pip install -e ".[portal]"
+```
+
+The adapter drives the installed Google Chrome (`channel="chrome"`) in a fresh, ephemeral context: no stored profile, cookies or screenshots. `.venv-portal/` and browser artifacts are gitignored.
+
+## Tests
+
+```bash
+python -m pytest                                  # full offline suite
+python -m pytest tests/test_acquisition_*.py tests/test_date_range_scope.py
+```
+
+The acquisition tests use a deterministic fake portal; they never open a browser or reach the network.
+
+## Month 1, eventually
+
+The Month 1 request is registered as `acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b` and was portal-verified in G3B.0 without submission. After Control authorizes live submission in a later gate:
+
+1. enable submission (`LIVE_SUBMISSION_ENABLED`) in a reviewed commit;
+2. `fink-lsst acquire --start 2026-02-25 --stop 2026-03-25 --portal-check --submit` re-verifies the portal in a fresh session, asks for the typed acquisition id, submits once and records the batch id and topic;
+3. watch the producer to `PRODUCER_COMPLETE`, record the Kafka watermark pre-check (`TOPIC_VERIFIED`), then run the `handoff` transfer plan on Arnor and record the transfer and the three-way reconciliation. In this release those executor steps are `AcquisitionOrchestrator` methods (`observe_producer`, `record_topic_metadata`, `record_transfer_started`, `record_transfer_result`, `record_delivery_validation`); command-line wrappers belong to the transfer gate.
