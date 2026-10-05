@@ -9,6 +9,7 @@ import pytest
 
 from _acquisition_fakes import FakeApprover, FakeKafkaConsumer, FakePortal, TopicPartition, write_raw_parquet
 from fink_lsst.acquisition.authority import SubmissionAuthority
+from fink_lsst.acquisition.evidence import build_raw_inventory, summarize_inventory
 from fink_lsst.acquisition.handoff import build_transfer_plan
 from fink_lsst.acquisition.orchestrator import (
     AcquisitionOrchestrator,
@@ -366,6 +367,86 @@ def test_r1_06_symlinked_or_escaping_evidence_fails_replay(env, tmp_path):
     path.unlink()
     path.symlink_to(outside)
     with pytest.raises(RegistryError, match="evidence"):
+        orchestrator.registry.load(record.acquisition_id)
+
+
+def _summary_path(record, state=S.DELIVERY_VALIDATED):
+    """The inventory summary the delivery receipt references: nested evidence, not the outer receipt."""
+    return record.directory / record.last_entry(state).evidence["receipt"]["inventory_summary_ref"]["path"]
+
+
+def _short_delivery(orchestrator, data_root):
+    record = _to_transfer_complete(orchestrator, _submitted(orchestrator, TOPIC_A), data_root)
+    write_raw_parquet(_raw_dir(data_root, record), [5, 4])  # one row short of the topic
+    return orchestrator.record_delivery_validation(record, data_root=data_root)
+
+
+def test_r1_06_intact_inventory_summary_replays_and_is_bound_to_the_delivery_receipt(env):
+    orchestrator, _authority, data_root = env
+    record = _validated(orchestrator, data_root)
+    reloaded = orchestrator.registry.load(record.acquisition_id)
+    assert reloaded.state == S.DELIVERY_VALIDATED
+    receipt = reloaded.last_entry(S.DELIVERY_VALIDATED).evidence["receipt"]
+    summary = json.loads(_summary_path(reloaded).read_text(encoding="utf-8"))
+    assert summary == summarize_inventory(build_raw_inventory(_raw_dir(data_root, reloaded)))  # the real raw delivery's summary
+    assert (receipt["inventory_sha256"], receipt["inventory_root_sha256"], receipt["inventory_shard_count"]) == (summary["inventory_sha256"], summary["root_sha256"], len(summary["shards"]))
+
+
+def test_r1_06_deleted_inventory_summary_fails_replay(env):
+    orchestrator, _authority, data_root = env
+    record = _validated(orchestrator, data_root)
+    _summary_path(record).unlink()
+    with pytest.raises(RegistryError, match="inventory_summary_1.json is missing"):
+        orchestrator.registry.load(record.acquisition_id)
+
+
+@pytest.mark.parametrize("edit", [lambda text, summary: text + " ", lambda text, summary: text.replace(summary["inventory_sha256"], "0" * 64)], ids=["whitespace-appended", "digest-replaced"])
+def test_r1_06_modified_inventory_summary_fails_replay(env, edit):
+    orchestrator, _authority, data_root = env
+    record = _validated(orchestrator, data_root)
+    path = _summary_path(record)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(edit(text, json.loads(text)), encoding="utf-8")
+    with pytest.raises(RegistryError, match="inventory_summary_1.json sha256 does not match"):
+        orchestrator.registry.load(record.acquisition_id)
+
+
+def test_r1_06_symlinked_inventory_summary_fails_replay_even_with_identical_bytes(env, tmp_path):
+    orchestrator, _authority, data_root = env
+    record = _validated(orchestrator, data_root)
+    path = _summary_path(record)
+    outside = tmp_path / "outside_summary.json"
+    outside.write_bytes(path.read_bytes())
+    path.unlink()
+    path.symlink_to(outside)
+    with pytest.raises(RegistryError, match="inventory_summary_1.json is not a regular file"):
+        orchestrator.registry.load(record.acquisition_id)
+
+
+def test_r1_06_non_regular_inventory_summary_fails_replay(env):
+    orchestrator, _authority, data_root = env
+    record = _validated(orchestrator, data_root)
+    path = _summary_path(record)
+    path.unlink()
+    path.mkdir()
+    with pytest.raises(RegistryError, match="inventory_summary_1.json is not a regular file"):
+        orchestrator.registry.load(record.acquisition_id)
+
+
+@pytest.mark.parametrize("damage", ["delete", "symlink"])
+def test_r1_06_failed_reconciliation_also_needs_its_inventory_summary(env, tmp_path, damage):
+    orchestrator, _authority, data_root = env
+    record = _short_delivery(orchestrator, data_root)
+    assert record.state == S.RECONCILIATION_FAILED
+    path = _summary_path(record, S.RECONCILIATION_FAILED)
+    if damage == "delete":
+        path.unlink()
+    else:
+        outside = tmp_path / "outside_summary.json"
+        outside.write_bytes(path.read_bytes())
+        path.unlink()
+        path.symlink_to(outside)
+    with pytest.raises(RegistryError, match="inventory_summary_1.json"):
         orchestrator.registry.load(record.acquisition_id)
 
 

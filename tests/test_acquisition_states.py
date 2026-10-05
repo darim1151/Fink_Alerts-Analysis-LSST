@@ -5,6 +5,7 @@ from datetime import date
 
 import pytest
 
+from fink_lsst.acquisition.evidence import summarize_inventory
 from fink_lsst.acquisition.planner import build_acquisition_request
 from fink_lsst.acquisition.portal_config import compile_portal_config, render_portal_yaml
 from fink_lsst.acquisition.receipts import (
@@ -117,7 +118,15 @@ def _transfer_evidence(registry, record, committed=10, exit_code=0, lag=0):
     return {"receipt": receipt, "receipt_ref": _write(registry, record, "transfer", receipt)}
 
 
-def _delivery_evidence(registry, record, rows, expected=10, committed=10, unreadable=0, passed=None):
+INVENTORY = summarize_inventory([f"{'1' * 64}  part-0.parquet", f"{'2' * 64}  part-1.parquet"])
+
+
+def _delivery_evidence(registry, record, rows, expected=10, committed=10, unreadable=0, passed=None, summary=None, receipt_edit=None):
+    """Delivery evidence as the orchestrator records it: the receipt references a separate inventory summary.
+
+    `summary` replaces the inventory summary file written (dict or raw text) and `receipt_edit` changes the receipt
+    before it is written; the receipt's inventory metadata is always derived from `INVENTORY`.
+    """
     transfer = record.last_entry(S.TRANSFER_COMPLETE).evidence["receipt"]
     reconciliation = {"expected_topic_messages": expected, "terminal_committed": committed, "terminal_lag": 0, "local_readable_rows": rows}
     reconciliation["passed"] = (rows == expected == committed and unreadable == 0) if passed is None else passed
@@ -125,7 +134,11 @@ def _delivery_evidence(registry, record, rows, expected=10, committed=10, unread
         "schema_version": 1, "kind": "delivery", "acquisition_id": record.acquisition_id, "fingerprint": record.fingerprint,
         "batch_id": record.batch_id, "topic": TOPIC, "transfer_attempt_id": transfer["transfer_attempt_id"], "raw_dir": transfer["raw_dir"],
         "file_count": 2, "readable_rows": rows, "unreadable_files": unreadable, "reconciliation": reconciliation,
+        "inventory_sha256": INVENTORY["inventory_sha256"], "inventory_root_sha256": INVENTORY["root_sha256"], "inventory_shard_count": len(INVENTORY["shards"]),
+        "inventory_summary_ref": _write(registry, record, "inventory_summary", INVENTORY if summary is None else summary),
     }
+    if receipt_edit is not None:
+        receipt_edit(receipt)
     return {"receipt": receipt, "receipt_ref": _write(registry, record, "delivery", receipt)}
 
 
@@ -245,6 +258,112 @@ def test_delivery_validated_requires_exact_three_way_reconciliation(tmp_path):
         registry.transition(record, S.DELIVERY_VALIDATED, actor="executor", reason="x", evidence=no_ref)
     record = registry.transition(record, S.RECONCILIATION_FAILED, actor="executor", reason="rows short", evidence=_delivery_evidence(registry, record, 9))
     assert record.state == S.RECONCILIATION_FAILED
+
+
+# ---------------------------------------------------------------- R1-06: the delivery receipt's nested inventory summary
+
+
+def _forge_sealed(registry, record, target, evidence):
+    """Append a correctly hash-chained entry, as a writer that bypassed the registry would."""
+    from fink_lsst.acquisition.registry import _entry_line, _seal
+    from fink_lsst.acquisition.states import StateLogEntry
+
+    last = record.entries[-1]
+    entry = _seal(StateLogEntry(seq=last.seq + 1, at_utc="2026-10-05T01:30:00Z", from_state=last.to_state, to_state=target, actor="executor", reason="forged", evidence=evidence), last.entry_sha256)
+    with open(record.directory / "state_log.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(_entry_line(entry))
+
+
+def _receipt_set(**changes):
+    return lambda registry, record: {"receipt_edit": lambda receipt: receipt.update(changes)}
+
+
+def _receipt_drop(*keys):
+    return lambda registry, record: {"receipt_edit": lambda receipt: [receipt.pop(key) for key in keys]}
+
+
+def _ref_set(**changes):
+    return lambda registry, record: {"receipt_edit": lambda receipt: receipt.update(inventory_summary_ref={**receipt["inventory_summary_ref"], **changes})}
+
+
+def _ref_drop(key):
+    return lambda registry, record: {"receipt_edit": lambda receipt: receipt["inventory_summary_ref"].pop(key)}
+
+
+def _summary_is(summary):
+    return lambda registry, record: {"summary": summary}
+
+
+def _transfer_receipt_as(**changes):
+    """The (valid) transfer receipt reference offered in place of the inventory summary."""
+    return lambda registry, record: {"receipt_edit": lambda receipt: receipt.update(inventory_summary_ref={**record.last_entry(S.TRANSFER_COMPLETE).evidence["receipt_ref"], **changes})}
+
+
+def _both(first, second):
+    return lambda registry, record: {**first(registry, record), **second(registry, record)}
+
+
+_OTHER_DIGEST = "3" * 64
+_MISSING_INVENTORY_KEYS = {key: value for key, value in INVENTORY.items() if key not in {"inventory_sha256", "root_sha256"}}
+BAD_INVENTORY_EVIDENCE = [
+    # no reference at all, or one the evidence-reference verifier rejects
+    pytest.param(_receipt_drop("inventory_summary_ref"), "must reference its inventory summary", id="absent-reference"),
+    pytest.param(_receipt_set(inventory_summary_ref=None), "malformed evidence reference", id="malformed-null"),
+    pytest.param(_receipt_set(inventory_summary_ref="evidence/inventory_summary_1.json"), "malformed evidence reference", id="malformed-bare-string"),
+    pytest.param(_ref_set(extra="x"), "malformed evidence reference", id="malformed-extra-key"),
+    pytest.param(_ref_drop("sha256"), "malformed evidence reference", id="malformed-missing-sha256"),
+    pytest.param(_ref_set(path="evidence/../state_log.jsonl"), "not a confined evidence path", id="malformed-path-traversal"),
+    pytest.param(_ref_set(path="/etc/hosts"), "not a confined evidence path", id="malformed-absolute-path"),
+    pytest.param(_ref_set(sha256="0" * 63), "not a confined evidence path", id="malformed-short-digest"),
+    pytest.param(_ref_set(path="evidence/inventory_summary_9.json"), "inventory_summary_9.json is missing", id="reference-to-missing-file"),
+    pytest.param(_ref_set(sha256="0" * 64), "sha256 does not match", id="digest-mismatch"),
+    # wrong evidence kind, honestly labelled or relabelled
+    pytest.param(_ref_set(kind="delivery"), "expected 'inventory_summary'", id="wrong-kind-delivery"),
+    pytest.param(_ref_set(kind="bogus"), "expected 'inventory_summary'", id="wrong-kind-unknown"),
+    pytest.param(_transfer_receipt_as(), "expected 'inventory_summary'", id="wrong-kind-transfer-receipt"),
+    # verified file that is not the summary
+    pytest.param(_transfer_receipt_as(kind="inventory_summary"), "not a well-formed summary", id="relabelled-transfer-receipt"),
+    pytest.param(_summary_is("not json {"), "not a well-formed summary", id="not-json"),
+    pytest.param(_summary_is("[]\n"), "not a well-formed summary", id="json-list"),
+    pytest.param(_summary_is({}), "not a well-formed summary", id="empty-object"),
+    pytest.param(_summary_is({key: value for key, value in INVENTORY.items() if key != "shards"}), "not a well-formed summary", id="no-shards"),
+    pytest.param(_summary_is({**INVENTORY, "shards": []}), "not a well-formed summary", id="shards-not-a-mapping"),
+    # well-formed, verified, but not the summary this receipt records
+    pytest.param(_summary_is({**INVENTORY, "inventory_sha256": _OTHER_DIGEST}), "inventory summary differs", id="summary-inventory-digest-differs"),
+    pytest.param(_summary_is({**INVENTORY, "root_sha256": _OTHER_DIGEST}), "inventory summary differs", id="summary-root-digest-differs"),
+    pytest.param(_summary_is({**INVENTORY, "shards": {**INVENTORY["shards"], "zz": {"files": 1, "sha256": _OTHER_DIGEST}}}), "inventory summary differs", id="summary-shard-count-differs"),
+    pytest.param(_summary_is(_MISSING_INVENTORY_KEYS), "inventory summary differs", id="summary-lacks-digests"),
+    pytest.param(_receipt_set(inventory_sha256=_OTHER_DIGEST), "inventory summary differs", id="receipt-inventory-digest-differs"),
+    pytest.param(_receipt_set(inventory_root_sha256=_OTHER_DIGEST), "inventory summary differs", id="receipt-root-digest-differs"),
+    pytest.param(_receipt_set(inventory_shard_count=len(INVENTORY["shards"]) + 1), "inventory summary differs", id="receipt-shard-count-differs"),
+    # the receipt must record the metadata the summary is bound to (absent on both sides must not compare equal)
+    pytest.param(_receipt_drop("inventory_sha256"), "must record the inventory digest", id="receipt-lacks-inventory-digest"),
+    pytest.param(_receipt_drop("inventory_root_sha256"), "must record the inventory digest", id="receipt-lacks-root-digest"),
+    pytest.param(_receipt_drop("inventory_shard_count"), "must record the inventory digest", id="receipt-lacks-shard-count"),
+    pytest.param(_both(_receipt_drop("inventory_sha256", "inventory_root_sha256"), _summary_is(_MISSING_INVENTORY_KEYS)), "must record the inventory digest", id="metadata-absent-on-both-sides"),
+]
+
+
+@pytest.mark.parametrize("target,rows", [(S.DELIVERY_VALIDATED, 10), (S.RECONCILIATION_FAILED, 9)])
+@pytest.mark.parametrize("make,message", BAD_INVENTORY_EVIDENCE)
+def test_r1_06_delivery_needs_its_verified_and_bound_inventory_summary(tmp_path, make, message, target, rows):
+    registry, record = _created(tmp_path)
+    record = _to_transfer_complete(registry, record)
+    evidence = _delivery_evidence(registry, record, rows, **make(registry, record))
+    with pytest.raises(TransitionError, match=message):  # refused when written ...
+        registry.transition(record, target, actor="executor", reason="x", evidence=evidence)
+    _forge_sealed(registry, record, target, evidence)  # ... and refused when a hash-consistent log carrying it is replayed
+    with pytest.raises(RegistryError, match=f"invalid transition.*{message}"):
+        registry.load(record.acquisition_id)
+
+
+@pytest.mark.parametrize("target,rows", [(S.DELIVERY_VALIDATED, 10), (S.RECONCILIATION_FAILED, 9)])
+def test_r1_06_intact_bound_inventory_summary_replays(tmp_path, target, rows):
+    """Control for the forged-log cases above: the same forging path with correct nested evidence replays."""
+    registry, record = _created(tmp_path)
+    record = _to_transfer_complete(registry, record)
+    _forge_sealed(registry, record, target, _delivery_evidence(registry, record, rows))
+    assert registry.load(record.acquisition_id).state == target
 
 
 def test_no_path_reaches_topic_dependent_states_without_an_identified_topic(tmp_path):

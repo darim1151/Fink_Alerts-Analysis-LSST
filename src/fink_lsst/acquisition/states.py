@@ -266,6 +266,7 @@ def _check_evidence(entries: Sequence[StateLogEntry], target: AcquisitionState, 
             and recon.get("local_readable_rows") == receipt.get("readable_rows"),
             "reconciliation counts must be the recorded pre-check, transfer and raw-delivery values",
         )
+        _require_inventory_summary(context, receipt, require)
         counts = [recon.get(key) for key in ("expected_topic_messages", "terminal_committed", "local_readable_rows")]
         exact = all(_count(value) for value in counts) and counts[0] > 0 and len(set(counts)) == 1 and recon.get("terminal_lag") == 0 and receipt.get("unreadable_files") == 0
         if target == S.DELIVERY_VALIDATED:
@@ -290,6 +291,31 @@ def _receipt(entries: Sequence[StateLogEntry], evidence: Mapping[str, Any], cont
     known_batch = _known_batch(entries)
     require(known_batch is None or receipt.get("batch_id") == known_batch, f"the {kind} receipt names another batch")
     return receipt
+
+
+def _require_inventory_summary(context: Mapping[str, Any], receipt: Mapping[str, Any], require) -> None:
+    """A delivery receipt stands only on a verified inventory summary that matches the inventory metadata it records.
+
+    The summary is nested evidence: the outer receipt verifying is not enough,
+    so its reference goes through the same verifier as every other reference.
+    """
+    require("inventory_summary_ref" in receipt, "the delivery receipt must reference its inventory summary")
+    content = _verified(context, receipt["inventory_summary_ref"], "inventory_summary", require)
+    try:
+        summary = json.loads(content)
+    except ValueError:
+        summary = None
+    require(isinstance(summary, Mapping) and isinstance(summary.get("shards"), Mapping), "the inventory summary is not a well-formed summary")
+    require(
+        _hex(receipt.get("inventory_sha256"), _HEX64) and _hex(receipt.get("inventory_root_sha256"), _HEX64) and _count(receipt.get("inventory_shard_count")),
+        "the delivery receipt must record the inventory digest, root digest and shard count",
+    )
+    require(
+        summary.get("inventory_sha256") == receipt["inventory_sha256"]
+        and summary.get("root_sha256") == receipt["inventory_root_sha256"]
+        and len(summary["shards"]) == receipt["inventory_shard_count"],
+        "the inventory summary differs from the inventory digest, root digest or shard count recorded in the delivery receipt",
+    )
 
 
 def _verified(context: Mapping[str, Any], ref: Any, kind: str, require) -> bytes:
