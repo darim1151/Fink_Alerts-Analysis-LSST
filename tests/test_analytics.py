@@ -254,3 +254,18 @@ def test_SQL_UTC_filter_leap_and_exact_midnight():
     assert len(c.query_utc(con,'sources','2016-12-31','2017-01-01').fetchall())==2
     assert len(c.query_utc(con,'sources','2017-01-01','2017-01-02').fetchall())==1
     con.close()
+
+
+def test_failed_catalog_cannot_be_admitted_by_readonly_open(tmp_path):
+    item,_=make_input(tmp_path)
+    path=next(item.raw.glob('*.parquet'))
+    table=pq.read_table(path).set_column(0,'diaSourceId',pa.array([1,1,3,4,5],type=pa.int64()))
+    pq.write_table(table,path)
+    item.snapshot=c.raw_snapshot(item.raw)
+    processed=tmp_path/'data/processed/run';processed.mkdir(parents=True)
+    catalog=processed/'analytics.duckdb'
+    with pytest.raises(c.AdmissionError,match='source/time identity'):
+        c.build_catalog([item],catalog,'code','run',str(tmp_path))
+    assert catalog.exists()
+    with pytest.raises(c.AdmissionError,match='qualification incomplete or failed'):
+        c.open_catalog(catalog,tmp_path)

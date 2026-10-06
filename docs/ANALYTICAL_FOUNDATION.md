@@ -22,6 +22,8 @@ nulls, positive source IDs, finite TAI times, row counts, population/object
 counts, requested-window coverage and any pinned G4A daily/multiplicity evidence.
 A failed run preserves the partial catalog and finalizes its manifest as FAILED;
 use a justified new run ID after a correction. Existing runs are never reused.
+The reopening helper rejects partial catalogs without a completed qualification
+marker; only all-checks-passed catalogs become query interfaces.
 
 ## Contract and future admission
 
@@ -111,9 +113,9 @@ projection/filter pushdown; consulted 2026-10-05).
 
 ## Offline qualification
 
-G4B synthetic tests: 31 passed. Repaired committed-evidence tests: 11 passed.
+G4B synthetic tests: 32 passed. Repaired committed-evidence tests: 11 passed.
 Relevant G4A/handoff/data-root/date-range/schema tests: 83 passed. Combined focused
-qualification: 125 passed. Full offline suite: 661 passed, zero failures. The
+qualification: 126 passed. Full offline suite: 662 passed, zero failures. The
 canonical evidence correction retains the historical R2 qualification, verifies
 the production activation/approval binding and pins the accepted Month-1 receipt;
 future qualified acquisitions are checked through their evidence chain without

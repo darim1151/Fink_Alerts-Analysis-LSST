@@ -376,6 +376,7 @@ def build_catalog(inputs, path, code_sha, run_id, temporary_dir):
         for item in inputs:
             if raw_snapshot(item.raw) != item.snapshot:
                 raise ContradictionError('raw names/size/mtime/ctime changed during analytical run')
+        conn.execute("INSERT INTO catalog_metadata VALUES ('qualification_status', '\"PASS\"'::JSON)")
         tables=conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='main' AND table_type='BASE TABLE' ORDER BY table_name").fetchall()
         physical={name:conn.execute(f'SELECT count(*) FROM {name}').fetchone()[0] for name, in tables}
         summary=dict(contract_id=CONTRACT_ID,source_rows=sum(x.receipt['readable_rows'] for x in inputs),
@@ -413,6 +414,8 @@ def open_catalog(path,data_root):
         metadata=dict(conn.execute('SELECT key,value FROM catalog_metadata').fetchall())
         if json.loads(metadata['contract_id']) != CONTRACT_ID:
             raise AdmissionError('unsupported stored analytical contract')
+        if json.loads(metadata.get('qualification_status', 'null')) != 'PASS':
+            raise AdmissionError('catalog qualification incomplete or failed')
         for item in json.loads(metadata['inputs']):
             raw=confine_tree(item['raw_path'],storage_base(data_root,'data/raw/data_transfer'))
             if raw_snapshot(raw)['stat_fingerprint'] != item['raw_stat_fingerprint']:
