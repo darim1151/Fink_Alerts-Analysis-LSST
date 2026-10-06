@@ -1,0 +1,64 @@
+{
+  "acquisition_id": "acq_lsst_ls_v1_2026-03-25_to_2026-04-25_0c852cd059fa",
+  "batch_id": "43",
+  "checked_utc": "2026-10-06T07:02:03Z",
+  "expected_topic_messages": 76133,
+  "fingerprint": "0c852cd059fa7fe8add53854df288898959074f3111d55c3b7b6a78fa8108b8f",
+  "kind": "topic_metadata",
+  "meaning": "sum(high - low) of the fresh topic; transport expectation, not scientific completeness",
+  "partitions": [
+    {
+      "high": 7560,
+      "low": 0,
+      "partition": 0
+    },
+    {
+      "high": 7642,
+      "low": 0,
+      "partition": 1
+    },
+    {
+      "high": 7542,
+      "low": 0,
+      "partition": 2
+    },
+    {
+      "high": 7649,
+      "low": 0,
+      "partition": 3
+    },
+    {
+      "high": 7674,
+      "low": 0,
+      "partition": 4
+    },
+    {
+      "high": 7448,
+      "low": 0,
+      "partition": 5
+    },
+    {
+      "high": 7640,
+      "low": 0,
+      "partition": 6
+    },
+    {
+      "high": 7603,
+      "low": 0,
+      "partition": 7
+    },
+    {
+      "high": 7707,
+      "low": 0,
+      "partition": 8
+    },
+    {
+      "high": 7668,
+      "low": 0,
+      "partition": 9
+    }
+  ],
+  "queried_topic": "ftransfer_lsst_2026-10-06_270011",
+  "schema_version": 1,
+  "topic": "ftransfer_lsst_2026-10-06_270011"
+}
