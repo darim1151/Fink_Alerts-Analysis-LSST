@@ -1,0 +1,22 @@
+{
+  "audit_manifest": {
+    "path": "/astro/store/shire/FINK/manifests/final-science-readiness-20261006-v2/audit_manifest.json",
+    "sha256": "b4888e35149be56115f966403f8fe458889aa07de179f3ab536b81ccdcd47d4f"
+  },
+  "audit_output": {
+    "path": "/astro/store/shire/FINK/outputs/final-science-readiness-20261006-v2/final_readiness_audit.json",
+    "sha256": "3586c7cfc012e27eee3094d1c05f295cdb775dc0c747a6bbfd0a19ff8776e91a"
+  },
+  "audit_policy_regression_sha256": "06eef8e0d59c6a68602c4f4e04938e420cfe6b3b15881f9d50fc5a49dfbc84aa",
+  "audit_run_id": "final-science-readiness-20261006-v2",
+  "audit_script": {
+    "path": "/astro/store/shire/FINK/manifests/final-science-readiness-20261006-v2/final_audit_v2.py",
+    "sha256": "b95e8619fca6075a348e67752bcc2351ec7450740ebf084dd18781c1fdd1bf8e"
+  },
+  "build_code_sha": "7e58b13c77bd0e4bc81e41e3c2b4759db382499b",
+  "canonical_test_evidence_sha256": "9dae2de5531db455817837ede1f69f5483917849e9667031018c2c606e11f37f",
+  "prior_failed_audit": {
+    "path": "/astro/store/shire/FINK/manifests/final-science-readiness-20261006-v1/failed_audit_manifest.json",
+    "sha256": "8a3e59f1e2b067d6228bcd9f39b292daebe47209f72dd477ef8b4186ae8b68e3"
+  }
+}
