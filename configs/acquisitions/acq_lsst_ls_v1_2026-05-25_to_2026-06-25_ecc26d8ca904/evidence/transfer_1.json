@@ -1,0 +1,16 @@
+{
+  "acquisition_id": "acq_lsst_ls_v1_2026-05-25_to_2026-06-25_ecc26d8ca904",
+  "batch_id": "45",
+  "command_sha256": "5a78c10baf068d89c05eb9e27f34c06d06caa46f6b3a3fc144dce575e7b16ac6",
+  "exit_code": 0,
+  "fingerprint": "ecc26d8ca9043ee388a1507bf8d5445c0c7c0130266f7bb0c7cb62de630d1897",
+  "kind": "transfer",
+  "log_sha256": "3985794e1afca06a438ae5942d846213b4501be8a9c6afa580d49ea6197fa8c7",
+  "raw_dir": "data/raw/data_transfer/date_range/2026-05-25_to_2026-06-25/ftransfer_lsst_2026-10-06_863953",
+  "release": "fink-client 12.2.0; repo 85252bd801eb1c1fbe3aa26da93ad0224863c738",
+  "schema_version": 1,
+  "terminal_committed": 923667,
+  "terminal_lag": 0,
+  "topic": "ftransfer_lsst_2026-10-06_863953",
+  "transfer_attempt_id": "d851c29522b44ba39c43f92d1345fa8c"
+}
