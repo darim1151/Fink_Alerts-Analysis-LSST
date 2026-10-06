@@ -1,0 +1,60 @@
+{
+  "acquisition_id": "acq_lsst_ls_v1_2026-03-25_to_2026-04-25_0c852cd059fa",
+  "expected_dates": [
+    "2026-03-25",
+    "2026-03-26",
+    "2026-03-27",
+    "2026-03-28",
+    "2026-03-29",
+    "2026-03-30",
+    "2026-03-31",
+    "2026-04-01",
+    "2026-04-02",
+    "2026-04-03",
+    "2026-04-04",
+    "2026-04-05",
+    "2026-04-06",
+    "2026-04-07",
+    "2026-04-08",
+    "2026-04-09",
+    "2026-04-10",
+    "2026-04-11",
+    "2026-04-12",
+    "2026-04-13",
+    "2026-04-14",
+    "2026-04-15",
+    "2026-04-16",
+    "2026-04-17",
+    "2026-04-18",
+    "2026-04-19",
+    "2026-04-20",
+    "2026-04-21",
+    "2026-04-22",
+    "2026-04-23",
+    "2026-04-24"
+  ],
+  "fingerprint": "0c852cd059fa7fe8add53854df288898959074f3111d55c3b7b6a78fa8108b8f",
+  "fingerprint_algorithm": "sha256(canonical_json(scientific_identity))",
+  "operational": {
+    "as_of_date": "2026-10-06",
+    "created_at_utc": "2026-10-06T06:57:36Z",
+    "generator": "fink_lsst.acquisition"
+  },
+  "portal_dates_inclusive": {
+    "startdate": "2026-03-25",
+    "stopdate": "2026-04-24"
+  },
+  "schema_version": 1,
+  "scientific_identity": {
+    "identity_schema": 1,
+    "profile_content_sha256": "62d809b0b24c6d88fa0d9259e59255e28794012958e8deebaf2e7a5c2723d173",
+    "science_profile": "lsst_light_static_all_alerts_v1",
+    "scope": "date_range",
+    "survey": "lsst",
+    "window": {
+      "semantics": "half_open_utc_dates",
+      "start": "2026-03-25",
+      "stop": "2026-04-25"
+    }
+  }
+}
