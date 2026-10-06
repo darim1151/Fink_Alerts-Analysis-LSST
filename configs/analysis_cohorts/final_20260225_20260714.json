@@ -1,0 +1,49 @@
+{
+  "acquisitions": [
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b",
+      "characterization": {
+        "code_sha": "d34f6c244a2cc0c6ec6840d63e274b7c79fd7424",
+        "run_id": "g4a-month1-20260225_20260325-v1",
+        "summary_sha256": "47a7adf35689cc409a90f6de739a05d1b510dde7f416dbffb95073bd67c9e540"
+      }
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-03-25_to_2026-04-25_0c852cd059fa",
+      "characterization": {
+        "code_sha": "952b1401430d01cc1d6b00c58dac44c87225a691",
+        "run_id": "g5-month2-characterization-v1",
+        "summary_sha256": "4081484c4c22359ab6a7588c8de30e5ce127d26a01d58966ca957d76542807ac"
+      }
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-04-25_to_2026-05-25_1ccf601aa29f",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "run_id": "final-month3-characterization-20261006-v1",
+        "summary_sha256": "dcd47100a8d58f5b04b95e2b7d651da3ba7f72cf0e03b518ebd0673a50915e47"
+      }
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-05-25_to_2026-06-25_ecc26d8ca904",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "run_id": "final-month4-characterization-20261006-v1",
+        "summary_sha256": "b1bf36bfb159a70851d7eba681137d7d558f8aab3bbe672f9095ed2ff1745fd8"
+      }
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-06-25_to_2026-07-14_1ad0e9dadca7",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "run_id": "final-month5-characterization-20261006-v1",
+        "summary_sha256": "d2db345bf0403e30863731df9eba34ed65267e75afda9c27954bdcef53b2a1cc"
+      }
+    }
+  ],
+  "cohort_name": "accepted_five_window_20260225_20260714",
+  "contract_id": "analysis_contract_v1",
+  "requested_calendar_days": 139,
+  "requested_start": "2026-02-25",
+  "requested_stop": "2026-07-14"
+}
