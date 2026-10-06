@@ -1,0 +1,40 @@
+{
+  "acquisition_id": "acq_lsst_ls_v1_2026-04-25_to_2026-05-25_1ccf601aa29f",
+  "batch_id": "44",
+  "file_count": 2668,
+  "fingerprint": "1ccf601aa29faf580708dff2a6dc4e5e6ea727e2b284525cd4c2330977a54d40",
+  "inventory_root_sha256": "3bd5c416dc266342319669c17a893f102348d67100a626cfddb34ab770512f7e",
+  "inventory_sha256": "3621da0dcd97b095a5e41a151bc2cb973d6b5fdce603e052e198a668c37cea23",
+  "inventory_shard_count": 256,
+  "inventory_summary_ref": {
+    "kind": "inventory_summary",
+    "path": "evidence/inventory_summary_1.json",
+    "sha256": "89ca392a5ef9d2910c590efba23bb47291560817f33bb657282d41770a5885ec"
+  },
+  "kind": "delivery",
+  "parquet_files": 2668,
+  "raw_dir": "data/raw/data_transfer/date_range/2026-04-25_to_2026-05-25/ftransfer_lsst_2026-10-06_644744",
+  "readable_parquet_files": 2668,
+  "readable_rows": 266496,
+  "reconciliation": {
+    "delta_expected_minus_committed": 0,
+    "delta_expected_minus_local": 0,
+    "expected_topic_messages": 266496,
+    "local_readable_rows": 266496,
+    "meaning": "transport reconciliation of the delivered topic; not Rubin scientific completeness",
+    "passed": true,
+    "terminal_committed": 266496,
+    "terminal_lag": 0
+  },
+  "schema_groups": {
+    "94e24bb1455f3bc2": {
+      "files": 2668,
+      "rows": 266496
+    }
+  },
+  "schema_version": 1,
+  "topic": "ftransfer_lsst_2026-10-06_644744",
+  "total_bytes": 143714745,
+  "transfer_attempt_id": "d475460c1dc34ae5945fa4498b5cdd07",
+  "unreadable_files": 0
+}
