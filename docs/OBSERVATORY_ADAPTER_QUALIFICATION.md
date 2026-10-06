@@ -147,4 +147,40 @@ closed pending verified owner schema identity/version/hash. Expected alignment
 is a serializer-only binding and compatibility validation; an owner requirement
 for HEALPix would additionally require the isolated spatial backend.
 
+## Independent main movement observed at handoff
+
+After implementation and the first handoff push, the local origin reference had
+advanced independently to `5f26a2026022e5ae7f708d4625aad6190ea3215f`.
+The gate remains based on frozen
+`85252bd801eb1c1fbe3aa26da93ad0224863c738`; it was not rebased or merged.
+The fixture and test results above retain that exact scientific source baseline.
+
+The three additional main commits are:
+
+- `394398bc90646f19745e9d75074a3b83df3e6457`: Validate Month-4 Fink delivery.
+- `e29021147c97ee581d9ba9b25ed6b4c0f3319a9f`: Prepare final Fink acquisition through July 13.
+- `5f26a2026022e5ae7f708d4625aad6190ea3215f`: Record final Fink submission and producer completion.
+
+Their complete diff contains only acquisition-state/evidence additions under
+`configs/acquisitions`. Analytics, characterization, cohorts and their
+scientific contract documents have no changes. A read-only archive of that
+exact observed SHA in `/private/tmp/fink-u1-observed-main-5f26a20` replayed all
+five acquisition records successfully through the existing registry verifier.
+
+| Latest observed window, half-open UTC | Transport | Validated delivered rows | Characterization | Analytical admission |
+|---|---|---:|---|---|
+| 2026-02-25 → 2026-03-25 | DELIVERY_VALIDATED | 1,658,642 | Accepted pinned G4A | Accepted historical G4B; external catalog not reopened here |
+| 2026-03-25 → 2026-04-25 | DELIVERY_VALIDATED | 76,133 | NOT_ESTABLISHED | NOT_ADMITTED |
+| 2026-04-25 → 2026-05-25 | DELIVERY_VALIDATED | 266,496 | NOT_ESTABLISHED | NOT_ADMITTED |
+| 2026-05-25 → 2026-06-25 | DELIVERY_VALIDATED | 923,667 | NOT_ESTABLISHED | NOT_ADMITTED |
+| 2026-06-25 → 2026-07-14 | PRODUCER_COMPLETE | — | NOT_ESTABLISHED | NOT_ADMITTED |
+
+The final acquisition identity is
+`acq_lsst_ls_v1_2026-06-25_to_2026-07-14_1ad0e9dadca7`. Month 4 retains identity
+`acq_lsst_ls_v1_2026-05-25_to_2026-06-25_ecc26d8ca904`; its newly validated
+receipt was not imported into the frozen adapter branch. These transport counts
+do not imply astrophysical evolution. A final documentation-only commit records
+this observation; the implementation, metadata fixture and qualification remain
+unchanged.
+
 AWAITING_CONTROL_V3_UI_U1_FINK_ADAPTER_ADJUDICATION
