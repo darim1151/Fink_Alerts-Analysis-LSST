@@ -1,0 +1,40 @@
+{
+  "code_revision": "c375daf36a3289a1bc46956663615ea8a969487e",
+  "context_id": "playwright-e113a98dc42b493e8961a1741e964367",
+  "downloaded_config_ref": {
+    "kind": "portal_download",
+    "path": "evidence/portal_download_1.yml",
+    "sha256": "a1b0445b27d55c67a8025220c97383015113901bb39133c6e9d0250bc5ec6803"
+  },
+  "downloaded_config_sha256": "a1b0445b27d55c67a8025220c97383015113901bb39133c6e9d0250bc5ec6803",
+  "expected_config_sha256": "81ae92afd904dda6cb0435e5af0586aaa947f05453c76fa7350060fd498de29c",
+  "final_review": {
+    "download_visible": true,
+    "reached": true,
+    "submit_enabled": true,
+    "submit_visible": true
+  },
+  "final_review_reached": true,
+  "form": {
+    "alert_estimate_text": "76,133 alerts",
+    "block_buttons_seen": 16,
+    "catalog_label": "No catalog",
+    "content_values": [
+      "Light static packet"
+    ],
+    "date_display_text": "March 25, 2026 \u2013 April 24, 2026",
+    "date_value_text": "2026-03-25 \u2013 2026-04-24",
+    "extra_cond_empty": true,
+    "filter_buttons_seen": 11,
+    "selected_block_buttons": [],
+    "selected_filter_buttons": []
+  },
+  "initial_submit_callbacks_blocked": 1,
+  "mismatches": [],
+  "portal_estimated_alerts_text": "76,133 alerts",
+  "semantic_match": true,
+  "service_workers": "block",
+  "submit_clicked": false,
+  "submit_requests_blocked": 0,
+  "ui_checks_passed": true
+}
