@@ -1,0 +1,40 @@
+{
+  "code_revision": "952b1401430d01cc1d6b00c58dac44c87225a691",
+  "context_id": "playwright-d6e8a36522304c19990f1f1ce1d6986d",
+  "downloaded_config_ref": {
+    "kind": "portal_download",
+    "path": "evidence/portal_download_1.yml",
+    "sha256": "29d861c5c3afb89acbf887eca0ec09c347163ea53ca8f21ac8b2c4861f50ea6d"
+  },
+  "downloaded_config_sha256": "29d861c5c3afb89acbf887eca0ec09c347163ea53ca8f21ac8b2c4861f50ea6d",
+  "expected_config_sha256": "24df6d2c964e4d64fa6946e8695bbbca129bc7ea1283329a685fb253a1018c62",
+  "final_review": {
+    "download_visible": true,
+    "reached": true,
+    "submit_enabled": true,
+    "submit_visible": true
+  },
+  "final_review_reached": true,
+  "form": {
+    "alert_estimate_text": "266,496 alerts",
+    "block_buttons_seen": 16,
+    "catalog_label": "No catalog",
+    "content_values": [
+      "Light static packet"
+    ],
+    "date_display_text": "April 25, 2026 \u2013 May 24, 2026",
+    "date_value_text": "2026-04-25 \u2013 2026-05-24",
+    "extra_cond_empty": true,
+    "filter_buttons_seen": 11,
+    "selected_block_buttons": [],
+    "selected_filter_buttons": []
+  },
+  "initial_submit_callbacks_blocked": 1,
+  "mismatches": [],
+  "portal_estimated_alerts_text": "266,496 alerts",
+  "semantic_match": true,
+  "service_workers": "block",
+  "submit_clicked": false,
+  "submit_requests_blocked": 0,
+  "ui_checks_passed": true
+}
