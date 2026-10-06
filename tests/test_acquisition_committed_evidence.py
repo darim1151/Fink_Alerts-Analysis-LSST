@@ -25,20 +25,35 @@ def test_production_profile_digest_is_pinned():
 
 def test_every_committed_acquisition_replays_cleanly():
     records = AcquisitionRegistry(REGISTRY).list_records()
-    assert records, "the G3B.0 Month-1 dry run should be committed"
+    assert records, "the accepted Month-1 production evidence must be committed"
     for record in records:
         assert record.directory.name == record.acquisition_id
-        assert not submission_attempted(record.entries), "no live submission is authorized before a later gate"
+        if record.acquisition_id == MONTH_ONE:
+            assert record.state == S.DELIVERY_VALIDATED
+            assert submission_attempted(record.entries)
+            assert record.entries[-1].entry_sha256 == "bb1d4080a8681931d46a6eac348717cd5b7cdd9bbe24b5b6f595f7f2df39a962"
+        if submission_attempted(record.entries):
+            approval = record.last_entry(S.APPROVED)
+            submitting = record.last_entry(S.SUBMITTING)
+            assert approval is not None and submitting is not None
+            assert approval.evidence["approved_fingerprint"] == record.fingerprint
+            assert submitting.evidence["approval_seq"] == approval.seq
+            assert submitting.evidence["context_id"] == approval.evidence["context_id"]
+        if record.state == S.DELIVERY_VALIDATED:
+            receipt = record.last_entry(S.DELIVERY_VALIDATED).evidence["receipt"]
+            rec = receipt["reconciliation"]
+            assert rec["passed"] is True and rec["terminal_lag"] == 0
+            assert rec["expected_topic_messages"] == rec["terminal_committed"] == rec["local_readable_rows"] == receipt["readable_rows"]
 
 
-def test_month_one_dry_run_evidence():
+def test_month_one_production_evidence_preserves_dry_run_qualification():
     record = AcquisitionRegistry(REGISTRY).load(MONTH_ONE)
-    assert record.state == S.PORTAL_VERIFIED
+    assert record.state == S.DELIVERY_VALIDATED
     assert record.request.portal_startdate == "2026-02-25"
     assert record.request.portal_stopdate == "2026-03-24"
     assert len(record.request.expected_dates) == 28
     verifications = [entry.evidence for entry in record.entries if entry.to_state == S.PORTAL_VERIFIED]
-    assert len(verifications) == 2  # G3B.0 dry run, then the G3B.0-R2 hardened qualification
+    assert len(verifications) == 3  # initial dry run, R2 remediation, then production activation
     for verification in verifications:
         assert verification["semantic_match"] is True and verification["ui_checks_passed"] is True
         assert verification["submit_clicked"] is False
@@ -47,16 +62,40 @@ def test_month_one_dry_run_evidence():
         path = verification["downloaded_config_ref"]["path"] if "downloaded_config_ref" in verification else verification["downloaded_config_file"]
         downloaded = (record.directory / path).read_text(encoding="utf-8")
         assert compare_portal_configs(compile_portal_config(record.request), parse_portal_config(downloaded)) == []
+    assert record.topic == "ftransfer_lsst_2026-10-05_555200" and record.batch_id == "42"
+    delivery = record.last_entry(S.DELIVERY_VALIDATED).evidence["receipt"]
+    assert delivery["readable_rows"] == 1658642
+    assert delivery["parquet_files"] == delivery["readable_parquet_files"] == 16591
+    assert delivery["unreadable_files"] == 0 and delivery["total_bytes"] == 1460135494
+    assert delivery["schema_groups"] == {"94e24bb1455f3bc2": {"files": 16591, "rows": 1658642}}
+    reconciliation = delivery["reconciliation"]
+    assert reconciliation["passed"] is True
+    assert reconciliation["expected_topic_messages"] == reconciliation["terminal_committed"] == reconciliation["local_readable_rows"] == 1658642
+    assert reconciliation["terminal_lag"] == 0
+    assert record.last_entry(S.TRANSFER_COMPLETE).evidence["receipt"]["terminal_committed"] == 1658642
 
 
 def test_month_one_r2_qualification_is_bound_to_the_remediation_code():
     record = AcquisitionRegistry(REGISTRY).load(MONTH_ONE)
-    qualification = record.last_entry(S.PORTAL_VERIFIED).evidence
+    qualified = [entry for entry in record.entries if entry.to_state == S.PORTAL_VERIFIED and entry.evidence.get("code_revision")]
+    assert [entry.evidence["code_revision"] for entry in qualified] == [
+        "a9c46bc09826a8a87ac3f516558f5f6f7a9e1759", "13a6ef36509aa6dcb7d5371e2819dc60be865c81"]
+    qualification = qualified[0].evidence
     assert qualification["code_revision"] == "a9c46bc09826a8a87ac3f516558f5f6f7a9e1759"
     assert qualification["service_workers"] == "block"
     assert qualification["initial_submit_callbacks_blocked"] == 1 and qualification["submit_requests_blocked"] == 0
     assert qualification["context_id"].startswith("playwright-")
     assert qualification["downloaded_config_ref"]["kind"] == "portal_download"
+    activation = qualified[-1]
+    assert activation.evidence["service_workers"] == "block"
+    assert activation.evidence["semantic_match"] is True and activation.evidence["submit_clicked"] is False
+    approval = record.last_entry(S.APPROVED)
+    assert approval.evidence["verification_seq"] == activation.seq
+    assert approval.evidence["context_id"] == activation.evidence["context_id"]
+    assert approval.evidence["approved_fingerprint"] == record.fingerprint
+    submitting = record.last_entry(S.SUBMITTING)
+    assert submitting.evidence["approval_seq"] == approval.seq
+    assert submitting.evidence["context_id"] == approval.evidence["context_id"]
 
 
 def test_committed_acquisition_files_carry_no_credentials():
