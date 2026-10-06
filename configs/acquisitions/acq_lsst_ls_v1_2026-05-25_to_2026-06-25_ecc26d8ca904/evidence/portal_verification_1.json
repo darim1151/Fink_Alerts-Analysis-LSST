@@ -1,0 +1,40 @@
+{
+  "code_revision": "69671f90e0dc1cdc76b210cd66debe304d548d98",
+  "context_id": "playwright-23580422a7434a7187d94053f6d20102",
+  "downloaded_config_ref": {
+    "kind": "portal_download",
+    "path": "evidence/portal_download_1.yml",
+    "sha256": "83004fa2f2859b94ab08616807cbd76e0ddcfaef908e7aeb7adfc92646fa3295"
+  },
+  "downloaded_config_sha256": "83004fa2f2859b94ab08616807cbd76e0ddcfaef908e7aeb7adfc92646fa3295",
+  "expected_config_sha256": "b2dfe6808a3920786cc71423983474924a6ab5eb74c52b710db1dcdd36558dd4",
+  "final_review": {
+    "download_visible": true,
+    "reached": true,
+    "submit_enabled": true,
+    "submit_visible": true
+  },
+  "final_review_reached": true,
+  "form": {
+    "alert_estimate_text": "923,667 alerts",
+    "block_buttons_seen": 16,
+    "catalog_label": "No catalog",
+    "content_values": [
+      "Light static packet"
+    ],
+    "date_display_text": "May 25, 2026 \u2013 June 24, 2026",
+    "date_value_text": "2026-05-25 \u2013 2026-06-24",
+    "extra_cond_empty": true,
+    "filter_buttons_seen": 11,
+    "selected_block_buttons": [],
+    "selected_filter_buttons": []
+  },
+  "initial_submit_callbacks_blocked": 1,
+  "mismatches": [],
+  "portal_estimated_alerts_text": "923,667 alerts",
+  "semantic_match": true,
+  "service_workers": "block",
+  "submit_clicked": false,
+  "submit_requests_blocked": 0,
+  "ui_checks_passed": true
+}
