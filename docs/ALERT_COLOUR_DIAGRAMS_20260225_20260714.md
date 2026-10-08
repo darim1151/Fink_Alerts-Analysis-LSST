@@ -32,14 +32,15 @@ names, types, parallax and photo-z, but no photometry). So:
    (SHA256 `bb308e31…cefb`, unchanged; raw stat fingerprints re-verified on open).
 2. Population `DIA` only (6,311,364 sources, 3,487,175 DIA objects). SSO is kept separate per
    `analysis_contract_v1` and **not plotted**: SSO sources have no object key in Light Static, each alert is
-   single-band, and the template has no static counterpart (median SSO `templateFlux` is −8 to −68 nJy per band).
+   single-band, and the template has no static counterpart (median SSO `templateFlux` per band lies between −68 and +25 nJy, i.e. consistent with zero against DIA medians of
+   15,000–99,000 nJy).
 3. Per DIA object and band: median `templateFlux` and median `templateFluxErr` over delivered sources with finite
    flux and error. A band is usable when median flux > 0 and median S/N ≥ 5.
 4. Panels: (a) `r_tmpl` vs `(g−i)_tmpl` and (c) `(r−i)_tmpl` vs `(g−r)_tmpl` need usable g, r, i;
    (b) `(g−r)_tmpl` vs `(u−g)_tmpl` needs usable u, g, r.
 5. Labels: Fink `pred.main_label_classifier` (= CATS broad class) and `pred.main_label_crossmatch`
    (= SIMBAD `otype`), taken from each object's **latest delivered snapshot** (max `observation_mjd_tai`,
-   then max `source_id`). Labels evolve: 5,562 of the colour-eligible objects (and 929,783 of all DIA objects)
+   then max `source_id`). Labels evolve: 5,562 of the 8,293 objects in either panel sample (and 929,783 of all DIA objects)
    changed CATS class across their delivered snapshots.
 6. CATS codes, from `fink_broker/rubin/science.py`: 11 SN-like, 12 Fast (KN, µlens, novae), 13 Long (SLSN, TDE, PISN),
    21 Periodic (RR Lyr, EB, LPV), 22 Non-periodic (AGN), −1 not processed (single detection).
@@ -87,6 +88,27 @@ branch at `g−r ≈ 1.4`, and SIMBAD QSO/AGN objects sit at `u−g ≈ 0–0.5`
 Of the 642 red-branch objects (`g−r > 1.2`, `r−i > 0.6`), 367 are CATS "SN-like" and 128 "Non-periodic (AGN)",
 while only 20 have a SIMBAD stellar type (562 have no SIMBAD match). This suggests flaring or variable M dwarfs
 carrying transient/AGN labels.
+
+## Independent audit (2026-10-08)
+
+All figure inputs were re-derived from the raw Parquet files on disk (71,042 files, globbed per delivery, read with
+pyarrow and aggregated in pandas), bypassing the analytical catalog and its views. Results:
+
+- Rows 7,101,947, unique `diaSourceId` 7,101,947, DIA 6,311,364, SSO 790,583, ambiguous 0, DIA objects 3,487,175.
+- Usable-band object counts, panel samples (8,196 gri; 1,050 ugr; 8,293 in either) and latest CATS and SIMBAD
+  labels match the run table exactly; one row per DIA object, no duplicates.
+- Magnitudes agree to 6.6e-5 mag; the only difference is the rounded AB zero point (31.4 used; exact
+  2.5 log10(3631e9) = 31.40007). Colours agree to floating-point precision; colour signs are bluer-minus-redder band.
+- No object's RA straddles 0/360, so the mean RA/Dec used for Galactic latitude is valid.
+- CATS codes were checked against broker 4.1 and 5.0rc0 data: code −1 always has score 0 and coincides exactly with
+  `pred.is_first`; no SN-like (11) source has score 0, so unprocessed first alerts do not leak into class 11.
+  8 plotted objects carry a class with a null score at their latest snapshot.
+
+Corrections to this note: the SSO template-flux range and the label-evolution denominator above were corrected.
+Axis ranges are slightly wider than the reference figure (r_tmpl 14–26, because 489 of 8,196 objects are brighter
+than r_tmpl = 18; colour axes extended by 0.25–0.5 mag). Contour levels are computed over objects inside each panel's range.
+Not available, and therefore not applied: pixel flags (saturation, blending, edge), so bright or crowded templates
+cannot be cleaned; the S/N cut uses median flux over median error, not a per-alert S/N.
 
 ## Provenance
 
