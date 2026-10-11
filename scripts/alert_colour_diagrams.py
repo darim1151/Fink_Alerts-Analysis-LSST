@@ -264,7 +264,9 @@ def draw_panels(axes, df, sub, title_prefix, show_labels):
             txt = f"n = {len(base):,}" + (f" ({int((~inside).sum()):,} off-axis)" if (~inside).any() else "")
         if key == "panel_b" and len(shown):
             n_ddf = int((shown.field == DDF).sum())
-            txt += "\nall in deep-drilling fields" if n_ddf == len(shown) else f"\n{n_ddf:,} of {len(shown):,} in deep-drilling fields"
+            # Programme = the group of most of the object's alerts (see object_fields).
+            txt += ("\nall: deep-drilling fields (most alerts)" if n_ddf == len(shown)
+                    else f"\n{n_ddf:,} of {len(shown):,}: deep-drilling fields (most alerts)")
         ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", ha="left", fontsize=7.5, color=INK)
         ax.set_xlim(*xr)
         ax.set_ylim(*(yr[::-1] if inv else yr))
