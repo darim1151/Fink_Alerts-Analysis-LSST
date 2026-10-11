@@ -38,14 +38,20 @@ BANDS = ("u", "g", "r", "i", "z", "y")
 AB_ZP_NJY = 31.4  # m_AB = 31.4 - 2.5 log10(f / nJy)
 MIN_TEMPLATE_SNR = 5.0
 
+# Fink's own class names (fink_science/rubin/cats/utilities.py CATS_CLASS_DICT), shown as classifier labels.
+# They name what each class was trained on; they are not verified classes of the plotted objects.
 CATS_LABELS = {
-    11: "SN-like",
-    12: "Fast (KN, ulens, novae)",
-    13: "Long (SLSN, TDE, PISN)",
-    21: "Periodic (RR Lyr, EB, LPV)",
-    22: "Non-periodic (AGN)",
-    -1: "Not processed (single detection)",
+    11: 'Fink CATS label "SN-like" (code 11)',
+    12: 'Fink CATS label "Fast" (code 12)',
+    13: 'Fink CATS label "Long" (code 13)',
+    21: 'Fink CATS label "Periodic" (code 21)',
+    22: 'Fink CATS label "non-Periodic (AGN)" (code 22)',
+    -1: "Fink CATS code −1: first alert, not classified",
 }
+SIMBAD_RADIUS_NOTE = "1″"
+NO_MATCH = "No SIMBAD object within 1″"
+XM_FAILED = "Crossmatch failed: SIMBAD status unknown"
+DDF = "Deep drilling fields"
 
 SIMBAD_QSO_AGN = {"QSO", "AGN", "Sy1", "Sy2", "SyG", "Sy?", "BLL", "BL?", "Bla", "Bz?", "Q?", "AG?", "LIN", "LI?"}
 SIMBAD_GALAXY = {"G", "G?", "rG", "GiG", "GiC", "GiP", "BiC", "GrG", "EmG", "CGG", "SBG", "H2G", "LSB", "bCG",
@@ -58,11 +64,15 @@ SIMBAD_STAR_EXTRA = {"WD?", "AB?", "LP?", "RR?", "HS?", "CV?", "EB?", "RG?", "HB
                      "Er?", "RC?", "sg?", "PN?"}
 
 
-def simbad_group(otype):
-    if otype is None or (isinstance(otype, float) and np.isnan(otype)):
-        return "No SIMBAD match"
-    if otype == "Fail":
-        return "Crossmatch failed"
+def simbad_group(otype, answered):
+    """otype: latest SIMBAD type among the object's alerts whose crossmatch succeeded; answered: any alert's
+    crossmatch succeeded (Fink writes "Fail" when the CDS xmatch request errors, null when nothing is within 1″)."""
+    if isinstance(otype, str) and otype:
+        pass
+    elif answered:
+        return NO_MATCH
+    else:
+        return XM_FAILED
     if otype in SIMBAD_QSO_AGN:
         return "QSO / AGN"
     if otype in SIMBAD_GALAXY:
@@ -94,18 +104,31 @@ WITH dia AS (
          observation_mjd_tai AS label_mjd_tai,
          row_number() OVER (PARTITION BY dia_object_id ORDER BY observation_mjd_tai DESC, source_id DESC) AS rk
   FROM dia_source_snapshots
+), simbad_valid AS (
+  SELECT dia_object_id, pred_json->>'main_label_crossmatch' AS simbad_otype_valid,
+         row_number() OVER (PARTITION BY dia_object_id ORDER BY observation_mjd_tai DESC, source_id DESC) AS rk
+  FROM dia_source_snapshots
+  WHERE (pred_json->>'main_label_crossmatch') IS NOT NULL AND (pred_json->>'main_label_crossmatch') <> 'Fail'
+), simbad_answered AS (
+  SELECT dia_object_id,
+         bool_or((pred_json->>'main_label_crossmatch') IS NULL OR (pred_json->>'main_label_crossmatch') <> 'Fail') AS simbad_answered,
+         count(*) FILTER (WHERE (pred_json->>'main_label_crossmatch') = 'Fail') AS n_simbad_fail
+  FROM dia_source_snapshots GROUP BY 1
 ), label_stability AS (
   SELECT dia_object_id,
          count(DISTINCT TRY_CAST(pred_json->>'main_label_classifier' AS INTEGER)) AS n_distinct_cats_class
   FROM dia_source_snapshots GROUP BY 1
 )
 SELECT pos.*, latest.cats_class_latest, latest.simbad_otype_latest, latest.label_mjd_tai,
+       simbad_valid.simbad_otype_valid, simbad_answered.simbad_answered, simbad_answered.n_simbad_fail,
        label_stability.n_distinct_cats_class,
        {pivot}
 FROM pos
 JOIN latest USING (dia_object_id)
 JOIN label_stability USING (dia_object_id)
-LEFT JOIN per_band USING (dia_object_id)
+JOIN simbad_answered USING (dia_object_id)
+LEFT JOIN simbad_valid ON simbad_valid.dia_object_id = pos.dia_object_id AND simbad_valid.rk = 1
+LEFT JOIN per_band ON per_band.dia_object_id = pos.dia_object_id
 WHERE latest.rk = 1
 GROUP BY ALL
 """
@@ -135,8 +158,47 @@ def add_magnitudes(df):
     df["panel_c"] = df.panel_a
     df["panel_b"] = df.ok_u & df.ok_g & df.ok_r
     df["cats_label"] = df.cats_class_latest.map(lambda c: CATS_LABELS.get(int(c), f"code {int(c)}") if pd.notna(c) else "Missing")
-    df["simbad_group"] = df.simbad_otype_latest.map(simbad_group)
+    df["simbad_group"] = [simbad_group(o, a) for o, a in zip(df.simbad_otype_valid, df.simbad_answered)]
     return df
+
+
+def field_group(target):
+    """Observing-programme group from target_name (same precedence as scripts/alert_science_suite.py)."""
+    t = str(target)
+    parts = {p.strip() for p in t.split(",")}
+    if any(p.startswith("ddf_") for p in parts):
+        return DDF
+    if "field_m49" in parts:
+        return "M49 field"
+    if any(p.startswith("neutrino") for p in parts):
+        return "Target of opportunity"
+    if t.startswith("alt:"):
+        return "Engineering"
+    if "dusty_plane" in parts:
+        return "Galactic plane"
+    if "bulgy" in parts:
+        return "Galactic bulge"
+    if "nes" in parts:
+        return "North ecliptic spur"
+    if "lowdust" in parts:
+        return "Low-dust WFD"
+    return "Other"
+
+
+def object_fields(raw_files):
+    """Per DIA object: most frequent programme group over its alerts (ties: alphabetical) and whether any alert is in a DDF."""
+    import pyarrow.dataset as pads
+    t = pads.dataset(raw_files, format="parquet").to_table(columns=["diaObjectId", "target_name", "pred"])
+    d = pd.DataFrame({"dia_object_id": t.column("diaObjectId").to_numpy(),
+                      "target": t.column("target_name").to_pandas(),
+                      "is_sso": t.column("pred").combine_chunks().field("is_sso").to_pandas()})
+    d = d[(d.is_sso == False) & (d.dia_object_id > 0)]  # noqa: E712  (analysis_contract_v1 DIA rule)
+    groups = {v: field_group(v) for v in d.target.dropna().unique()}
+    d["field"] = d.target.map(groups).fillna("Other")
+    c = d.groupby(["dia_object_id", "field"]).size().rename("n").reset_index()
+    c = c.sort_values(["dia_object_id", "n", "field"], ascending=[True, False, True]).drop_duplicates("dia_object_id")
+    anyddf = d.assign(x=d.field == DDF).groupby("dia_object_id").x.any().rename("any_alert_in_ddf")
+    return c.set_index("dia_object_id")[["field"]].join(anyddf)
 
 
 def galactic_latitude(ra, dec):
@@ -185,6 +247,8 @@ def background(ax, d, x, y, xr, yr):
 
 def draw_panels(axes, df, sub, title_prefix, show_labels):
     for ax, (key, x, y, xl, yl, xr, yr, inv) in zip(axes, PANELS):
+        shown = (sub if sub is not None else df)
+        shown = shown[shown[key]]
         base = df[df[key]]
         background(ax, base, x, y, xr, yr)
         n_out = 0
@@ -198,6 +262,9 @@ def draw_panels(axes, df, sub, title_prefix, show_labels):
         else:
             inside = base[x].between(*xr) & base[y].between(*yr)
             txt = f"n = {len(base):,}" + (f" ({int((~inside).sum()):,} off-axis)" if (~inside).any() else "")
+        if key == "panel_b" and len(shown):
+            n_ddf = int((shown.field == DDF).sum())
+            txt += "\nall in deep-drilling fields" if n_ddf == len(shown) else f"\n{n_ddf:,} of {len(shown):,} in deep-drilling fields"
         ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", ha="left", fontsize=7.5, color=INK)
         ax.set_xlim(*xr)
         ax.set_ylim(*(yr[::-1] if inv else yr))
@@ -284,6 +351,9 @@ def main(argv=None):
     conn.close()
     df = add_magnitudes(df)
     df["gal_b_deg"] = galactic_latitude(df.ra_deg, df.dec_deg)
+    fields = object_fields(raw_files)
+    df = df.join(fields, on="dia_object_id")
+    assert df.field.notna().all(), "every DIA object must have a programme group"
 
     # Template stability across an object's alerts in one band (templates may be rebuilt).
     stab = {}
@@ -299,7 +369,7 @@ def main(argv=None):
     simb = counts_table(df, "simbad_group")
     cats.to_csv(out / "tables" / "counts_by_cats_class.csv", index=False)
     simb.to_csv(out / "tables" / "counts_by_simbad_group.csv", index=False)
-    otypes = (df.groupby(["simbad_otype_latest", "simbad_group"], dropna=False)
+    otypes = (df.groupby(["simbad_otype_valid", "simbad_group"], dropna=False)
                 .agg(dia_objects=("dia_object_id", "size"), panel_a_and_c_gri=("panel_a", "sum"), panel_b_ugr=("panel_b", "sum"))
                 .reset_index().sort_values("dia_objects", ascending=False))
     otypes.to_csv(out / "tables" / "simbad_otype_to_group.csv", index=False)
@@ -314,10 +384,12 @@ def main(argv=None):
     figure_overview(df, plt, figs)
     figure_facets(df, "cats_label", [CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)], plt, figs,
                   "fig2_by_fink_cats_class",
-                  "Fink CATS broad class at each object's latest delivered alert (blue) over all colour-eligible DIA objects (grey)")
-    figure_facets(df, "simbad_group", ["Star", "QSO / AGN", "Galaxy", "Other SIMBAD type", "No SIMBAD match", "Crossmatch failed"],
+                  "Fink CATS classifier label at each object's latest delivered alert (blue) over all colour-eligible DIA objects (grey).\n"
+                  "Labels are Fink's broad classes, not verified object types; against VSX and SIMBAD labels, recall of Periodic and non-Periodic (AGN) is 2–5%.")
+    figure_facets(df, "simbad_group", ["Star", "QSO / AGN", "Galaxy", "Other SIMBAD type", NO_MATCH, XM_FAILED],
                   plt, figs, "fig3_by_fink_simbad_crossmatch",
-                  "Fink SIMBAD crossmatch label at each object's latest delivered alert (blue) over all colour-eligible DIA objects (grey)")
+                  "Fink SIMBAD crossmatch (1″ radius): latest type from an alert whose crossmatch succeeded (blue) over all colour-eligible DIA objects (grey).\n"
+                  "Crossmatch failed = Fink's CDS request errored on every alert of the object, so its SIMBAD status is unknown.")
 
     elig = df[df.panel_a | df.panel_b]
     summary = {
@@ -335,12 +407,19 @@ def main(argv=None):
         "panel_a_and_c_gri_objects": int(df.panel_a.sum()),
         "panel_b_ugr_objects": int(df.panel_b.sum()),
         "eligible_abs_gal_b_lt_15_fraction": float((elig.gal_b_deg.abs() < 15).mean()) if len(elig) else None,
+        "panel_b_by_field": df[df.panel_b].field.value_counts().to_dict(),
+        "panel_a_by_field": df[df.panel_a].field.value_counts().to_dict(),
+        "objects_simbad_fail_on_all_alerts": int((~df.simbad_answered).sum()),
+        "objects_latest_fail_but_valid_type_elsewhere": int(((df.simbad_otype_latest == "Fail") & df.simbad_otype_valid.notna()).sum()),
         "objects_with_changing_cats_class": int((df.n_distinct_cats_class > 1).sum()),
         "eligible_with_changing_cats_class": int((elig.n_distinct_cats_class > 1).sum()),
         "template_stability": stab,
         "cuts": {"population": "DIA", "template_flux_aggregate": "per object and band median over delivered sources with finite flux and error",
                  "min_template_snr": MIN_TEMPLATE_SNR, "positive_flux": True, "ab_zero_point_njy": AB_ZP_NJY,
-                 "extinction_correction": None, "label_rule": "latest delivered snapshot per DIA object (max observation_mjd_tai, then max source_id)"},
+                 "extinction_correction": None, "label_rule": "CATS: latest delivered snapshot per DIA object (max observation_mjd_tai, then max source_id); "
+                               "SIMBAD: latest type among alerts whose crossmatch did not return Fail; no-match if any alert's crossmatch succeeded; "
+                               "crossmatch failed only if every alert returned Fail",
+                 "field_rule": "most frequent programme group of the object's alerts (target_name), ties alphabetical"},
         "runtime_seconds": round(time.time() - t0, 1),
     }
     for col, t in (("cats_label", cats), ("simbad_group", simb)):
