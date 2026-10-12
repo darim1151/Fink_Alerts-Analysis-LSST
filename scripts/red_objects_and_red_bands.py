@@ -160,9 +160,10 @@ def main(argv=None):
     acd.draw_panels(axes, elig, red, f"(g−i)_tmpl > {RED_CUT:g} (blue) over all colour-eligible DIA objects (grey)", True)
     axes[0].axvline(RED_CUT, ls="--", color=INK_MUTED, lw=0.9)
     g95 = float(red.mag_g.quantile(0.95))
-    axes[0].text(0.97, 0.03, f"95% of these have g_tmpl < {g95:.1f}; with g−r ≈ {float((red.mag_g - red.mag_r).median()):.2f}\n"
-                 "the required g-band alert limits how faint they reach in r",
-                 transform=axes[0].transAxes, ha="right", va="bottom", fontsize=7, color=INK)
+    axes[0].text(0.03, 0.03, f"95% of the blue points have g_tmpl < {g95:.1f};\nwith median g−r = {float((red.mag_g - red.mag_r).median()):.2f}, "
+                 "the required\ng-band alert limits how faint they reach in r",
+                 transform=axes[0].transAxes, ha="left", va="bottom", fontsize=7, color=INK,
+                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.5})
     fig.suptitle("Objects redder than g−i = 2 in template photometry (selection: alerts and usable templates in g, r and i)", fontsize=10)
     save(fig, figs, "R0_red_subset_overview", plt, record,
          "Objects with (g−i)_tmpl > 2 (blue) over all colour-eligible DIA objects (grey). Every plotted object must have alerted in g, r and i, so red objects need a g detection; that sets their brighter faint limit in r.")
