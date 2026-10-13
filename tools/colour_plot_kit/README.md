@@ -10,7 +10,7 @@ exported table. It needs no access to Arnor and never touches the raw alert data
 | `plot_colour_diagrams.py` | the plotting script |
 | `requirements.txt` | the three Python packages it needs |
 | `fink_dia_template_colours.csv.gz` | exported table: one row per DIA object with usable template magnitudes in ≥ 2 bands (sent separately; not in Git) |
-| `RubinStellarLocus_COSMOS.txt` | stellar locus from Zeljko (sent separately) |
+| `RubinStellarLocus_COSMOS.txt` | stellar locus (sent separately); its column header is a `#` comment line, which the script handles |
 
 ## One-time setup in VS Code (macOS)
 
