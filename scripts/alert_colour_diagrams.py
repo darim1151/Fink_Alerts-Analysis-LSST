@@ -3,7 +3,7 @@
 
 Light Static alerts carry no coadd CModel or PSF-minus-model photometry. The only
 static-sky quantity per band is ``templateFlux``: forced PSF photometry on the
-difference-imaging template at each DIA source position (nJy). This script
+difference-imaging template centred at the DIA object position (nJy). This script
 aggregates it per DIA object and band, converts to AB magnitudes and draws:
 
   (a) r_tmpl vs (g - i)_tmpl     (b) (g - r)_tmpl vs (u - g)_tmpl

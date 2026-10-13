@@ -13,7 +13,7 @@ Fink Light Static alerts carry neither. Per alert, the delivered photometry is, 
 |---|---|---|
 | `psfFlux` | PSF flux on the difference image | no (variable part only) |
 | `scienceFlux` | forced PSF flux on that epoch's direct image | no (single epoch, bands at different epochs) |
-| `templateFlux` | forced PSF flux on the difference-imaging template at the source position | **yes** |
+| `templateFlux` | forced PSF flux on the difference-imaging template, centred at the DiaObject position (alert schema v10.0–v11.1) | **yes** |
 | `lc_features[band]` | Fink SNAD features computed on the `psfFlux` (difference flux) history | no (not static-sky) |
 
 There are no static-sky or catalogue magnitudes in the crossmatch block (`xm` has SIMBAD/Gaia/Legacy
@@ -21,7 +21,7 @@ names, types, parallax and photo-z, but no photometry). So:
 
 - Every plotted magnitude is a **template PSF magnitude**, `m_tmpl = 31.4 − 2.5 log10(templateFlux / nJy)` (AB).
   Axes say exactly this. For point sources this approximates the quiescent PSF magnitude; for galaxies it
-  is the PSF-weighted flux at the transient's position, not a total magnitude.
+  is the PSF-weighted flux at the DIA object's position, not a total magnitude.
 - The top-left reference panel (r PSF − CModel vs r) **cannot be made**: there is no extended-source model flux.
   Rubin morphology is therefore unavailable. The science suite substitutes Legacy DR8 `pstar` from Fink's crossmatch.
 - Photometric calibration of delivered alert fluxes is not independently validated (project limitation).
