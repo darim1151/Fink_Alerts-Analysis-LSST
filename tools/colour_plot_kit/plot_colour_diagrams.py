@@ -7,7 +7,7 @@ a stellar-locus file such as RubinStellarLocus_COSMOS.txt, and draws four colour
     g-r vs u-g,  r-i vs g-r,  i-z vs r-i,  z-y vs i-z
 
 Each panel shows all DIA objects with the needed bands as a grey log-density map with contours enclosing 50/80/95%
-of them, the stellar locus as a red band (mean +/- 2 sigma, drawn as in the mentor's example code), and optionally a
+of them, the stellar locus as a red band (mean +/- 2 sigma), and optionally a
 selected subsample as blue points. With --facet, one row is drawn per group of a table column.
 
 Examples (run from this folder):
@@ -83,7 +83,7 @@ def load_locus(path):
 
 
 def draw_locus(ax, sl, xc, yc):
-    """Red band: x = mean locus colour xc, y = mean locus colour yc +/- 2 sigma(yc) (mentor's recipe)."""
+    """Red band: x = mean locus colour xc, y = mean locus colour yc +/- 2 sigma(yc)."""
     x = sl[LOCUS_COLS[xc][0]].to_numpy()
     y, sig = sl[LOCUS_COLS[yc][0]].to_numpy(), sl[LOCUS_COLS[yc][1]].to_numpy()
     ax.fill_between(x, y + 2 * sig, y - 2 * sig, color=LOCUS_COLOR, alpha=LOCUS_ALPHA, interpolate=True,

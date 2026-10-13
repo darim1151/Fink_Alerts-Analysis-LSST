@@ -55,7 +55,7 @@ Options:
 
 The four panels are g−r vs u−g, r−i vs g−r, i−z vs r−i and z−y vs i−z. The grey map shows all objects that have the
 two colours: log density plus contours enclosing 50/80/95% of them. The red band is the locus mean ± 2σ, drawn exactly
-as in Zeljko's example (x = locus colour, y = next colour ± 2 × its sigma). Blue points are the selected subsample.
+as in the example code (x = locus colour, y = next colour ± 2 × its sigma). Blue points are the selected subsample.
 Each panel prints how many objects it shows.
 
 ## Table columns
