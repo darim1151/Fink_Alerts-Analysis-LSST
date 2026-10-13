@@ -50,11 +50,35 @@ def load_data(path):
 
 
 def load_locus(path):
-    """Read the locus exactly as in the mentor's example (whitespace-separated, header on the first line)."""
-    sl = pd.read_csv(path, sep=r"\s+", header=0)
+    """Read the stellar-locus table.
+
+    The COSMOS locus file starts with '#' comment lines and its column header is itself a comment line
+    ('#  g-i   Npts   u-g   ugSig ...'), so the example's whitespace read_csv with header=0 fails on it. We take the column
+    names from the last comment line that lists 'u-g' and read the numeric rows; a file with a plain header line is
+    read as in the example code.
+    """
+    header = None
+    with open(path) as fh:
+        for line in fh:
+            t = line.strip()
+            if not t:
+                continue
+            if not t.startswith("#"):
+                break
+            tokens = t.lstrip("#").split()
+            if "u-g" in tokens:
+                header = tokens
+    if header is None:
+        sl = pd.read_csv(path, sep=r"\s+", header=0)
+    else:
+        sl = pd.read_csv(path, sep=r"\s+", comment="#", header=None, names=header)
     missing = [c for pair in LOCUS_COLS.values() for c in pair if c not in sl.columns]
     if missing:
         raise SystemExit(f"stellar-locus file is missing columns {missing}; found {list(sl.columns)}")
+    cols = [c for pair in LOCUS_COLS.values() for c in pair]
+    sl[cols] = sl[cols].apply(pd.to_numeric, errors="raise")
+    if sl[cols].isna().any().any() or len(sl) < 2:
+        raise SystemExit("stellar-locus file has missing values or fewer than two rows")
     return sl
 
 
