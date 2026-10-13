@@ -36,19 +36,19 @@ Run these in the VS Code terminal. Each writes a PNG and a PDF into `figures/`.
 # all DIA objects (grey) with the stellar locus (red band)
 python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt
 
-# highlight a subsample in blue, e.g. the g-i > 2 objects
-python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --select "gi > 2" --name red_objects
+# highlight a subsample in blue, e.g. the 661 g-i > 2 objects of the earlier figures
+python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --select "has_gri and gi > 2" --name red_objects
 
 # one row per SIMBAD group, or per Fink label
 python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --facet simbad_group
 python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --facet fink_cats_label
 
 # the g-i > 2 objects split by Fink label (grey = all g-i > 2 objects)
-python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --select "gi > 2" --facet fink_cats_label --name red_by_label
+python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt --select "has_gri and gi > 2" --facet fink_cats_label --name red_by_label
 ```
 
 Options:
-- `--select` takes any pandas condition on the table columns, e.g. `"gi > 2"`, `"gaia_parallax_mas / gaia_parallax_err_mas > 5"`, `'simbad_group == "QSO / AGN"'` or `'field == "Deep drilling fields"'`.
+- `--select` takes any pandas condition on the table columns, e.g. `"has_gri and gi > 2"`, `"gaia_parallax_mas / gaia_parallax_err_mas > 5"`, `'simbad_group == "QSO / AGN"'` or `'field == "Deep drilling fields"'`.
 - `--facet` takes any column name.
 - By default, Galactic bulge and plane fields are left out, because colours are not corrected for extinction. Add `--include-dusty` to keep them.
 - `--out` sets the output folder and `--name` the file name.
@@ -72,7 +72,9 @@ Each panel prints how many objects it shows.
 | `legacy_pstar` | Legacy Survey DR8 point-source probability from Fink's crossmatch |
 | `gaia_parallax_mas`, `gaia_parallax_err_mas` | Gaia DR3 parallax and error from Fink's crossmatch |
 
-Derived in the script: `ug`, `gr`, `ri`, `iz`, `zy` (adjacent colours) and `gi`.
+Derived in the script: `ug`, `gr`, `ri`, `iz`, `zy` (adjacent colours), `gi`, and `has_ugr`, `has_gri`, `has_riz`, `has_izy`
+(true when all three bands are usable). Use `has_gri` with `gi`: 1,772 more objects have usable g and i but not r,
+so `"gi > 2"` alone gives 2,433 objects, not the 661 in the earlier figures.
 
 ## How the magnitudes are made
 

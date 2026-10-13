@@ -12,9 +12,9 @@ selected subsample as blue points. With --facet, one row is drawn per group of a
 
 Examples (run from this folder):
     python plot_colour_diagrams.py --data fink_dia_template_colours.csv.gz --locus RubinStellarLocus_COSMOS.txt
-    python plot_colour_diagrams.py --data ... --locus ... --select "gi > 2" --name red_objects
+    python plot_colour_diagrams.py --data ... --locus ... --select "has_gri and gi > 2" --name red_objects
     python plot_colour_diagrams.py --data ... --locus ... --facet simbad_group
-    python plot_colour_diagrams.py --data ... --locus ... --facet fink_cats_label --select "gi > 2" --name red_by_label
+    python plot_colour_diagrams.py --data ... --locus ... --facet fink_cats_label --select "has_gri and gi > 2" --name red_by_label
 """
 from __future__ import annotations
 
@@ -43,6 +43,9 @@ def load_data(path):
     for c in COLOURS:
         d[c] = d[f"mag_{c[0]}"] - d[f"mag_{c[1]}"]
     d["gi"] = d.mag_g - d.mag_i
+    # Usable-band flags for each panel set; e.g. the 661 "g-i > 2" objects of the earlier figures are has_gri and gi > 2.
+    for bands in ("ugr", "gri", "riz", "izy"):
+        d[f"has_{bands}"] = d[[f"mag_{b}" for b in bands]].notna().all(axis=1)
     return d
 
 
@@ -112,7 +115,7 @@ def main(argv=None):
     p.add_argument("--locus", help="stellar-locus file (e.g. RubinStellarLocus_COSMOS.txt); omit to draw no locus")
     p.add_argument("--out", default="figures", help="output folder (created if needed)")
     p.add_argument("--name", default=None, help="file name stem; default depends on the options")
-    p.add_argument("--select", default=None, help='pandas query for the blue subsample, e.g. "gi > 2" or \'simbad_group == "Star"\'')
+    p.add_argument("--select", default=None, help='pandas query for the blue subsample, e.g. "has_gri and gi > 2" or \'simbad_group == "Star"\'')
     p.add_argument("--facet", default=None, help="column to split into rows, e.g. simbad_group, fink_cats_label, field")
     p.add_argument("--include-dusty", action="store_true", help="also include Galactic bulge and plane fields (no extinction correction)")
     a = p.parse_args(argv)
