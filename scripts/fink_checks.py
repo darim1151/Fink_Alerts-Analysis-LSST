@@ -66,7 +66,10 @@ def raw_template_rederivation(raw_files, template_table):
     dia_m = (a.is_sso == False) & (a.oid > 0)  # noqa: E712
     sso_m = (a.is_sso == True) & ((a.oid == 0) | a.oid.isna())  # noqa: E712
     r.update({"dia": int(dia_m.sum()), "sso": int(sso_m.sum()), "ambiguous": int(len(a) - dia_m.sum() - sso_m.sum())})
-    r["cats_minus1_equals_is_first"] = bool(((a.cats == -1) == (a.is_first == True)).all())  # noqa: E712
+    # Fink CATS code -1 ("not processed") should coincide with pred.is_first for DIA alerts; SSO alerts are all -1.
+    d_, s_ = a[dia_m], a[sso_m]
+    r["dia_alerts_where_cats_minus1_differs_from_is_first"] = int(((d_.cats == -1) != (d_.is_first == True)).sum())  # noqa: E712
+    r["sso_alerts_with_cats_minus1"] = int((s_.cats == -1).sum())
     r["cats_codes_by_broker_version"] = {str(k): {str(c): int(n) for c, n in v.items()}
                                          for k, v in a.groupby("ver").cats.value_counts().unstack(fill_value=0).to_dict(orient="index").items()}
     dia = a[dia_m]
