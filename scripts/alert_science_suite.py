@@ -332,7 +332,7 @@ def survey(src, req, out, plt, figs, tabs):
     ax.set_ylim(0.8, None)
     ax.set_ylabel("alerts per UTC date")
     ax.legend(loc="upper right", ncol=3)
-    ax.set_title("Delivered alerts per requested UTC date, 2026-02-25 to 2026-07-13 (zero rows ≠ zero Rubin alerts)", loc="left")
+    ax.set_title(f"Delivered alerts per requested UTC date, {pd.Timestamp(req.utc_date.min()).date()} to {pd.Timestamp(req.utc_date.max()).date()} (zero rows ≠ zero Rubin alerts)", loc="left")
     save(fig, out, "S2_nightly_alerts", figs, "Delivered alerts per requested UTC date (half-open TAI boundaries from the catalog). Ticks at the bottom mark dates with zero delivered rows; these are not proof of zero Rubin alerts.")
 
     # S3 field composition: CATS class mix (DIA sources) and band mix per field
@@ -778,27 +778,23 @@ def sso(src, out, plt, figs, tabs):
                  "dia_frac_abs_beta_lt_10": round(float((d.ecl_lat.abs() < 10).mean()), 4)}
 
 
-# ----------------------------------------------------------------------------- main
-def main(argv=None):
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--catalog", required=True)
-    p.add_argument("--data-root", required=True)
-    p.add_argument("--template-photometry", required=True, help="dia_object_template_photometry.parquet from the colour run")
-    p.add_argument("--out", required=True)
-    p.add_argument("--code-sha", required=True)
-    a = p.parse_args(argv)
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=False)
-    (out / "figures").mkdir()
-    (out / "tables").mkdir()
-    t0 = time.time()
+# ============================================================================= pipeline steps
+# Called in this order by main() and by notebooks/science/02_science_suite.ipynb.
 
-    conn = open_catalog(a.catalog, a.data_root)
+def load_catalog_inputs(catalog, data_root):
+    """Open the catalog read-only. Returns its pinned raw Parquet files, population totals (source_qc) and the
+    requested UTC dates with their TAI boundaries."""
+    conn = open_catalog(catalog, data_root)
     files = [r[0] for r in conn.execute("SELECT DISTINCT raw_file FROM sources ORDER BY 1").fetchall()]
     qc = conn.execute("SELECT sum(total_rows), sum(dia_rows), sum(sso_rows), sum(ambiguous_rows) FROM source_qc").fetchone()
     req = conn.execute("SELECT utc_date, start_mjd_tai, stop_mjd_tai FROM requested_date_boundaries").df()
     conn.close()
+    return files, qc, req
 
+
+def prepare_sources(files, qc):
+    """One row per delivered alert with population (analysis_contract_v1 rule), Galactic and ecliptic latitude.
+    Population counts are asserted against the catalog's source_qc totals."""
     src = load_sources(files)
     src["pop_"] = np.where((src.is_sso == False) & (src.oid > 0), "DIA",  # noqa: E712
                            np.where((src.is_sso == True) & ((src.oid == 0) | src.oid.isna()), "SSO", "AMBIGUOUS"))  # noqa: E712
@@ -812,9 +808,13 @@ def main(argv=None):
     src["gal_b"] = sc.galactic.b.deg
     from astropy.coordinates import BarycentricMeanEcliptic
     src["ecl_lat"] = sc.transform_to(BarycentricMeanEcliptic()).lat.deg
-    del sc
+    return src, counts
 
-    # Object table (DIA only)
+
+def build_object_table(src, template_photometry):
+    """One row per DIA object: latest Fink labels and scores, latest valid crossmatch values, programme, i-band and
+    any-band brightest delivered difference flux, joined to the template photometry of the colour run.
+    Returns (dia alerts sorted by object and time, object table)."""
     dia = src[src.pop_ == "DIA"].sort_values(["oid", "mjd", "sid"])
     g = dia.groupby("oid")
     obj = pd.DataFrame({"n_det": g.size(), "cats": g.cats.last(), "cats_score": g.cats_score.last(), "snn": g.snn.last(),
@@ -836,7 +836,7 @@ def main(argv=None):
     pa_["s"] = pa_.psfFlux / pa_.psfFluxErr
     pa_ = pa_.sort_values("psfFlux").groupby("oid").tail(1).set_index("oid")
     obj = obj.join(pd.DataFrame({"peak_mag_any": AB_ZP_NJY - 2.5 * np.log10(pa_.psfFlux), "peak_snr_any": pa_.s, "peak_band_any": pa_.band}))
-    tp = pd.read_parquet(a.template_photometry).set_index("dia_object_id")
+    tp = pd.read_parquet(template_photometry).set_index("dia_object_id")
     keep = ["panel_a", "panel_b", "panel_c", "mag_u", "mag_g", "mag_r", "mag_i", "ok_r", "ok_i", "tf_i", "gi", "gr", "ri", "ug"]
     obj = obj.join(tp[keep], how="left")
     assert len(obj) == len(tp) and obj.panel_a.notna().all()
@@ -844,38 +844,71 @@ def main(argv=None):
         obj[c] = obj[c].astype(bool)
     obj.index.name = "dia_object_id"
     obj = obj.reset_index()
+    return dia, obj
 
+
+ANALYSES = ("survey", "star_galaxy", "classifier_validation", "label_evolution", "variability", "distances", "quality", "sso")
+
+
+def run_analyses(src, dia, obj, req, files, out, names=ANALYSES):
+    """Run the analyses in `names` (default: all, in the order of the figure codes S, C, K, L, V, D, Q, O).
+    Figures go to out/figures, tables to out/tables. Returns (figure records, result dict, timings)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     style(plt)
-    figs, tabs = [], {}
-    steps = [("survey", lambda: survey(src, req, out, plt, figs, tabs)),
-             ("star_galaxy", lambda: star_galaxy(obj, out, plt, figs, tabs)),
-             ("classifier_validation", lambda: classifier_validation(obj, out, plt, figs, tabs)),
-             ("label_evolution", lambda: label_evolution(dia, out, plt, figs, tabs)),
-             ("variability", lambda: variability(obj, files, out, plt, figs, tabs)),
-             ("distances", lambda: distances(obj, out, plt, figs, tabs)),
-             ("quality", lambda: quality(src, obj, out, plt, figs, tabs)),
-             ("sso", lambda: sso(src, out, plt, figs, tabs))]
-    timings = {}
-    for name, fn in steps:
+    figs, tabs, timings = [], {}, {}
+    steps = {"survey": lambda: survey(src, req, out, plt, figs, tabs),
+             "star_galaxy": lambda: star_galaxy(obj, out, plt, figs, tabs),
+             "classifier_validation": lambda: classifier_validation(obj, out, plt, figs, tabs),
+             "label_evolution": lambda: label_evolution(dia, out, plt, figs, tabs),
+             "variability": lambda: variability(obj, files, out, plt, figs, tabs),
+             "distances": lambda: distances(obj, out, plt, figs, tabs),
+             "quality": lambda: quality(src, obj, out, plt, figs, tabs),
+             "sso": lambda: sso(src, out, plt, figs, tabs)}
+    for name in names:
         t1 = time.time()
-        fn()
+        steps[name]()
         timings[name] = round(time.time() - t1, 1)
         print(f"{name}: {timings[name]}s", flush=True)
+    return figs, tabs, timings
 
-    obj.drop(columns=["latest_sid_i"]).to_parquet(out / "tables" / "dia_object_science_table.parquet", index=False)
-    summary = {
-        "run": out.name, "code_sha": a.code_sha, "script_sha256": sha256(Path(__file__)),
-        "catalog": a.catalog, "catalog_sha256": sha256(a.catalog),
-        "template_photometry": a.template_photometry, "template_photometry_sha256": sha256(a.template_photometry),
+
+def build_summary(out, code_sha, catalog, template_photometry, files, counts, obj, figs, tabs, timings, runtime_s):
+    """Provenance and headline numbers written to summary.json."""
+    return {
+        "run": Path(out).name, "code_sha": code_sha, "script_sha256": sha256(Path(__file__)),
+        "catalog": str(catalog), "catalog_sha256": sha256(catalog),
+        "template_photometry": str(template_photometry), "template_photometry_sha256": sha256(template_photometry),
         "python": platform.python_version(),
         "packages": {m: __import__(m).__version__ for m in ("numpy", "pandas", "pyarrow", "matplotlib", "astropy", "duckdb")},
         "raw_files": len(files), "population_counts": counts, "dia_objects": int(len(obj)),
         "figures": figs, "results": jsonable({k: v for k, v in tabs.items() if k != "T1"}),
-        "timings_s": timings, "runtime_s": round(time.time() - t0, 1),
+        "timings_s": timings, "runtime_s": runtime_s,
     }
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--catalog", required=True)
+    p.add_argument("--data-root", required=True)
+    p.add_argument("--template-photometry", required=True, help="dia_object_template_photometry.parquet from the colour run")
+    p.add_argument("--out", required=True)
+    p.add_argument("--code-sha", required=True)
+    a = p.parse_args(argv)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "figures").mkdir()
+    (out / "tables").mkdir()
+    t0 = time.time()
+
+    files, qc, req = load_catalog_inputs(a.catalog, a.data_root)
+    src, counts = prepare_sources(files, qc)
+    dia, obj = build_object_table(src, a.template_photometry)
+    figs, tabs, timings = run_analyses(src, dia, obj, req, files, out)
+    obj.drop(columns=["latest_sid_i"]).to_parquet(out / "tables" / "dia_object_science_table.parquet", index=False)
+    summary = build_summary(out, a.code_sha, a.catalog, a.template_photometry, files, counts, obj, figs, tabs, timings,
+                            round(time.time() - t0, 1))
     (out / "summary.json").write_text(json.dumps(jsonable(summary), indent=2, default=str) + "\n")
     print(json.dumps({"runtime_s": summary["runtime_s"], "figures": len(figs)}))
 

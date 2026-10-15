@@ -131,6 +131,7 @@ LEFT JOIN simbad_valid ON simbad_valid.dia_object_id = pos.dia_object_id AND sim
 LEFT JOIN per_band ON per_band.dia_object_id = pos.dia_object_id
 WHERE latest.rk = 1
 GROUP BY ALL
+ORDER BY pos.dia_object_id
 """
 
 
@@ -276,10 +277,11 @@ def draw_panels(axes, df, sub, title_prefix, show_labels):
     axes[0].set_title(title_prefix, loc="left", fontsize=9, fontweight="bold")
 
 
-def figure_overview(df, plt, out):
+def figure_overview(df, plt, out, window):
+    """Fig. 1: all colour-eligible DIA objects. `window` = (first, last) requested UTC date of the cohort."""
     fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     draw_panels(axes, df, None, "All colour-eligible DIA objects (grey: log density; contours enclose 50/80/95%)", True)
-    fig.suptitle("Fink LSST Light Static alerts, 2026-02-25 to 2026-07-13: template PSF photometry per DIA object",
+    fig.suptitle(f"Fink LSST Light Static alerts, {window[0]} to {window[1]}: template PSF photometry per DIA object",
                  fontsize=10, color=INK)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"fig1_overview_all_dia.{ext}")
@@ -313,27 +315,25 @@ def sha256(path):
     return h.hexdigest()
 
 
-def main(argv=None):
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--catalog", required=True)
-    p.add_argument("--data-root", required=True)
-    p.add_argument("--out", required=True, help="new run-scoped output directory (must not exist)")
-    p.add_argument("--code-sha", required=True)
-    p.add_argument("--temp-dir", required=True)
-    p.add_argument("--threads", type=int, default=16)
-    p.add_argument("--memory-limit", default="24GB")
-    a = p.parse_args(argv)
+# ============================================================================= pipeline steps
+# The steps below are called in this order by main() and by notebooks/science/01_template_colours.ipynb.
 
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=False)
-    (out / "figures").mkdir()
-    (out / "tables").mkdir()
-    t0 = time.time()
+def cohort_window(conn):
+    """First and last requested UTC date of the cohort (the requested window is half-open, so 'last' is stop - 1 day)."""
+    first, last = conn.execute("SELECT min(utc_date), max(utc_date) FROM requested_date_boundaries").fetchone()
+    return str(first), str(last)
 
-    conn = open_catalog(a.catalog, a.data_root)
-    conn.execute(f"SET threads={a.threads}; SET memory_limit='{a.memory_limit}'; SET temp_directory='{a.temp_dir}'")
+
+def load_catalog_inputs(catalog, data_root, threads=16, memory_limit="24GB", temp_dir="/local/tmp"):
+    """Open the analytical catalog read-only and collect everything the colour diagrams need.
+
+    Returns a dict with: meta (catalog metadata), pop (source rows per population), band_pop (template-flux
+    summary per population and band), raw_files (the catalog's pinned Parquet files), broker_versions,
+    window (first, last requested UTC date) and df (one row per DIA object: template photometry, labels, programme).
+    """
+    conn = open_catalog(catalog, data_root)
+    conn.execute(f"SET threads={threads}; SET memory_limit='{memory_limit}'; SET temp_directory='{temp_dir}'")
     meta = dict(conn.execute("SELECT key, value FROM catalog_metadata").fetchall())
-
     pop = dict(conn.execute("SELECT population, count(*) FROM sources GROUP BY 1").fetchall())
     band_pop = conn.execute("""
         SELECT population, band, count(*) AS sources,
@@ -342,8 +342,9 @@ def main(argv=None):
                median(template_flux) AS median_template_flux_njy
         FROM sources GROUP BY 1, 2 ORDER BY 1, 2""").df()
     raw_files = [r[0] for r in conn.execute("SELECT DISTINCT raw_file FROM sources ORDER BY 1").fetchall()]
+    window = cohort_window(conn)
     mem = duckdb.connect()
-    mem.execute(f"SET threads={a.threads}")
+    mem.execute(f"SET threads={threads}")
     broker_versions = mem.execute("""
         SELECT fink_broker_version, fink_science_version, count(*) AS rows
         FROM read_parquet(?, union_by_name=false) GROUP BY 1, 2 ORDER BY 3 DESC""", [raw_files]).df()
@@ -353,11 +354,15 @@ def main(argv=None):
     conn.close()
     df = add_magnitudes(df)
     df["gal_b_deg"] = galactic_latitude(df.ra_deg, df.dec_deg)
-    fields = object_fields(raw_files)
-    df = df.join(fields, on="dia_object_id")
+    df = df.join(object_fields(raw_files), on="dia_object_id")
     assert df.field.notna().all(), "every DIA object must have a programme group"
+    assert df.dia_object_id.is_unique
+    return {"meta": meta, "pop": pop, "band_pop": band_pop, "raw_files": raw_files,
+            "broker_versions": broker_versions, "window": window, "df": df}
 
-    # Template stability across an object's alerts in one band (templates may be rebuilt).
+
+def template_stability(df):
+    """Spread of templateFlux across an object's alerts in one band, (max - min) / median (templates may be rebuilt)."""
     stab = {}
     for b in BANDS:
         m = df[f"ok_{b}"] & (df[f"n_finite_{b}"] >= 2)
@@ -365,45 +370,59 @@ def main(argv=None):
         stab[b] = {"objects_with_ge2_sources": int(m.sum()),
                    "median_rel_range": float(rel.median()) if len(rel) else None,
                    "p90_rel_range": float(rel.quantile(0.9)) if len(rel) else None}
+    return stab
 
-    df.to_parquet(out / "tables" / "dia_object_template_photometry.parquet", index=False)
+
+def write_tables(inputs, tables_dir):
+    """Write the per-object table and the count tables. Returns (counts by CATS label, counts by SIMBAD group)."""
+    df = inputs["df"]
+    df.to_parquet(tables_dir / "dia_object_template_photometry.parquet", index=False)
     cats = counts_table(df, "cats_label")
     simb = counts_table(df, "simbad_group")
-    cats.to_csv(out / "tables" / "counts_by_cats_class.csv", index=False)
-    simb.to_csv(out / "tables" / "counts_by_simbad_group.csv", index=False)
+    cats.to_csv(tables_dir / "counts_by_cats_class.csv", index=False)
+    simb.to_csv(tables_dir / "counts_by_simbad_group.csv", index=False)
     otypes = (df.groupby(["simbad_otype_valid", "simbad_group"], dropna=False)
                 .agg(dia_objects=("dia_object_id", "size"), panel_a_and_c_gri=("panel_a", "sum"), panel_b_ugr=("panel_b", "sum"))
                 .reset_index().sort_values("dia_objects", ascending=False))
-    otypes.to_csv(out / "tables" / "simbad_otype_to_group.csv", index=False)
-    band_pop.to_csv(out / "tables" / "template_flux_by_population_band.csv", index=False)
-    broker_versions.to_csv(out / "tables" / "fink_versions.csv", index=False)
+    otypes.to_csv(tables_dir / "simbad_otype_to_group.csv", index=False)
+    inputs["band_pop"].to_csv(tables_dir / "template_flux_by_population_band.csv", index=False)
+    inputs["broker_versions"].to_csv(tables_dir / "fink_versions.csv", index=False)
+    return cats, simb
 
+
+def make_figures(df, figs_dir, window):
+    """Figs. 1-3: overview, by Fink CATS label, by SIMBAD group. Returns the list of written PNG paths."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     style(plt)
-    figs = out / "figures"
-    figure_overview(df, plt, figs)
-    figure_facets(df, "cats_label", [CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)], plt, figs,
+    figure_overview(df, plt, figs_dir, window)
+    figure_facets(df, "cats_label", [CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)], plt, figs_dir,
                   "fig2_by_fink_cats_class",
                   "Fink CATS classifier label at each object's latest delivered alert (blue) over all colour-eligible DIA objects (grey).\n"
-                  "Labels are Fink's broad classes, not verified object types; against VSX and SIMBAD labels, recall of Periodic and non-Periodic (AGN) is 2–5%.")
+                  "Labels are Fink's broad classes, not verified object types (see the classifier-validation figure K1).")
     figure_facets(df, "simbad_group", ["Star", "QSO / AGN", "Galaxy", "Other SIMBAD type", NO_MATCH, XM_FAILED],
-                  plt, figs, "fig3_by_fink_simbad_crossmatch",
+                  plt, figs_dir, "fig3_by_fink_simbad_crossmatch",
                   "Fink SIMBAD crossmatch (1″ radius): latest type from an alert whose crossmatch succeeded (blue) over all colour-eligible DIA objects (grey).\n"
                   "Crossmatch failed = Fink's CDS request errored on every alert of the object, so its SIMBAD status is unknown.")
+    return [figs_dir / f"{n}.png" for n in ("fig1_overview_all_dia", "fig2_by_fink_cats_class", "fig3_by_fink_simbad_crossmatch")]
 
+
+def build_summary(inputs, stab, cats, simb, run_name, code_sha, catalog, runtime_s):
+    """Provenance and headline numbers written to summary.json."""
+    df = inputs["df"]
     elig = df[df.panel_a | df.panel_b]
     summary = {
-        "run": out.name,
-        "code_sha": a.code_sha,
+        "run": run_name,
+        "code_sha": code_sha,
         "script_sha256": sha256(Path(__file__)),
-        "catalog": a.catalog,
-        "catalog_sha256": sha256(a.catalog),
-        "catalog_contract": json.loads(meta["contract_id"]),
+        "catalog": str(catalog),
+        "catalog_sha256": sha256(catalog),
+        "catalog_contract": json.loads(inputs["meta"]["contract_id"]),
+        "cohort_window_utc": list(inputs["window"]),
         "python": platform.python_version(),
         "packages": {m: __import__(m).__version__ for m in ("duckdb", "numpy", "pandas", "matplotlib", "astropy", "pyarrow")},
-        "source_rows_by_population": pop,
+        "source_rows_by_population": inputs["pop"],
         "dia_objects": int(len(df)),
         "objects_with_band_ok": {b: int(df[f"ok_{b}"].sum()) for b in BANDS},
         "panel_a_and_c_gri_objects": int(df.panel_a.sum()),
@@ -422,10 +441,34 @@ def main(argv=None):
                                "SIMBAD: latest type among alerts whose crossmatch did not return Fail; no-match if any alert's crossmatch succeeded; "
                                "crossmatch failed only if every alert returned Fail",
                  "field_rule": "most frequent programme group of the object's alerts (target_name), ties alphabetical"},
-        "runtime_seconds": round(time.time() - t0, 1),
+        "runtime_seconds": runtime_s,
     }
     for col, t in (("cats_label", cats), ("simbad_group", simb)):
         summary[f"counts_by_{col}"] = t.to_dict(orient="records")
+    return summary
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--catalog", required=True)
+    p.add_argument("--data-root", required=True)
+    p.add_argument("--out", required=True, help="new run-scoped output directory (must not exist)")
+    p.add_argument("--code-sha", required=True)
+    p.add_argument("--temp-dir", required=True)
+    p.add_argument("--threads", type=int, default=16)
+    p.add_argument("--memory-limit", default="24GB")
+    a = p.parse_args(argv)
+
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "figures").mkdir()
+    (out / "tables").mkdir()
+    t0 = time.time()
+    inputs = load_catalog_inputs(a.catalog, a.data_root, a.threads, a.memory_limit, a.temp_dir)
+    stab = template_stability(inputs["df"])
+    cats, simb = write_tables(inputs, out / "tables")
+    make_figures(inputs["df"], out / "figures", inputs["window"])
+    summary = build_summary(inputs, stab, cats, simb, out.name, a.code_sha, a.catalog, round(time.time() - t0, 1))
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=int) + "\n")
     print(json.dumps({k: summary[k] for k in ("dia_objects", "objects_with_band_ok", "panel_a_and_c_gri_objects",
                                                "panel_b_ugr_objects", "runtime_seconds")}, default=int))

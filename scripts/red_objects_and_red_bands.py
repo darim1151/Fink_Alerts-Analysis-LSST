@@ -98,24 +98,14 @@ def facet_rows(df_bg, df, column, order, plt, figs, name, suptitle, record, capt
     return {g: {k: int(((df[column] == g) & df[k]).sum()) for k in keys} for g in rows}
 
 
-def main(argv=None):
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--template-photometry", required=True)
-    p.add_argument("--science-table", required=True)
-    p.add_argument("--catalog", required=True)
-    p.add_argument("--data-root", required=True)
-    p.add_argument("--out", required=True)
-    p.add_argument("--code-sha", required=True)
-    a = p.parse_args(argv)
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=False)
-    (out / "figures").mkdir()
-    (out / "tables").mkdir()
-    figs = out / "figures"
-    t0 = time.time()
+# ============================================================================= pipeline steps
+# Called in this order by main() and by notebooks/science/03_red_objects_and_red_bands.ipynb.
 
-    v = pd.read_parquet(a.template_photometry)
-    sci = pd.read_parquet(a.science_table, columns=["dia_object_id", "pstar", "plx", "eplx"])
+def prepare(template_photometry, science_table, catalog, data_root):
+    """Per-object table for this analysis: template photometry joined to Gaia parallax and Legacy pstar, red/blue
+    flags (g-i > 2 among objects with usable g, r, i), red-band panel flags, morphology class and first-alert band."""
+    v = pd.read_parquet(template_photometry)
+    sci = pd.read_parquet(science_table, columns=["dia_object_id", "pstar", "plx", "eplx"])
     assert v.dia_object_id.is_unique and sci.dia_object_id.is_unique and len(v) == len(sci)
     v = v.merge(sci, on="dia_object_id", how="left", validate="one_to_one")
     for b in BANDS:
@@ -135,7 +125,7 @@ def main(argv=None):
          "Legacy DR8 extended (pstar < 0.5)"], "No Gaia parallax S/N > 5 and no Legacy DR8 morphology")
 
     # First detected band (catalog, read-only)
-    conn = acd.open_catalog(a.catalog, a.data_root)
+    conn = acd.open_catalog(catalog, data_root)
     ids = v.loc[v.panel_a, ["dia_object_id"]]
     conn.register("ids", ids)
     fb = conn.execute("""
@@ -147,14 +137,27 @@ def main(argv=None):
     assert len(fb) == len(ids) and fb.dia_object_id.is_unique
     v = v.merge(fb.rename(columns={"band": "first_band"}), on="dia_object_id", how="left", validate="one_to_one")
 
-    red, blue, elig = v[v.red], v[v.blue], v[v.panel_a | v.panel_b]
+    return v
+
+
+def _plot_env():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     acd.style(plt)
     plt.rcParams.update({"legend.frameon": False, "legend.fontsize": 8, "savefig.bbox": "tight"})
-    record, res = [], {"n_red": int(len(red)), "n_blue": int(len(blue)), "red_cut": f"(g-i)_tmpl > {RED_CUT}, among objects with usable g, r, i templates"}
+    return plt
 
+
+def start_results(v):
+    red, blue = v[v.red], v[v.blue]
+    return [], {"n_red": int(len(red)), "n_blue": int(len(blue)), "red_cut": f"(g-i)_tmpl > {RED_CUT}, among objects with usable g, r, i templates"}
+
+
+def fig_r0_overview(v, figs, record, res):
+    """R0: the g-i > 2 objects over all colour-eligible objects."""
+    plt = _plot_env()
+    red, elig = v[v.red], v[v.panel_a | v.panel_b]
     # R0 red subset over all colour-eligible objects
     fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     acd.draw_panels(axes, elig, red, f"(g−i)_tmpl > {RED_CUT:g} (blue) over all colour-eligible DIA objects (grey)", True)
@@ -168,6 +171,12 @@ def main(argv=None):
     save(fig, figs, "R0_red_subset_overview", plt, record,
          "Objects with (g−i)_tmpl > 2 (blue) over all colour-eligible DIA objects (grey). Every plotted object must have alerted in g, r and i, so red objects need a g detection; that sets their brighter faint limit in r.")
 
+
+
+def fig_r1_r3_facets(v, figs, record, res):
+    """R1-R3: the g-i > 2 objects by Fink CATS label, SIMBAD group, and Gaia parallax / Legacy morphology."""
+    plt = _plot_env()
+    red = v[v.red]
     order_cats = [acd.CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)]
     res["R1_rows"] = facet_rows(red, red, "cats_label", order_cats, plt, figs, "R1_red_by_fink_cats",
                                 f"(g−i)_tmpl > {RED_CUT:g} objects only: Fink CATS label at the latest alert (blue) over all g−i > 2 objects (grey).\n"
@@ -183,6 +192,12 @@ def main(argv=None):
                                 f"(g−i)_tmpl > {RED_CUT:g} objects only: Gaia DR3 parallax and Legacy DR8 morphology from Fink's crossmatches (blue) over all g−i > 2 objects (grey)",
                                 record, "The g−i > 2 objects split by Gaia parallax and Legacy DR8 morphology (rows are exclusive, in the order shown).")
 
+
+
+def fig_d1_detection_bands(v, figs, record, res):
+    """D1: why the faint r limit is brighter for red objects (g and r limits, alerts by band, first-alert band)."""
+    plt = _plot_env()
+    red, blue = v[v.red], v[v.blue]
     # D1 why the faint r limit is brighter for red objects
     fig, axes = plt.subplots(1, 4, figsize=(17, 4), constrained_layout=True)
     for ax, col, lab in ((axes[0], "mag_g", r"$g_\mathrm{tmpl}$"), (axes[1], "mag_r", r"$r_\mathrm{tmpl}$")):
@@ -219,6 +234,11 @@ def main(argv=None):
     save(fig, figs, "D1_red_detection_bands", plt, record,
          "Template g and r magnitude distributions (dashed: 95th percentile), share of alerts by band, and first-alert band for g−i > 2 vs g−i ≤ 2 objects.")
 
+
+
+def fig_z1_red_bands(v, figs, record, res):
+    """Z1: red-band diagrams split by programme (outside vs inside bulge/plane)."""
+    plt = _plot_env()
     # Z1 red-band diagrams by programme
     outside = v[~v.field.isin(DUSTY)]
     inside = v[v.field.isin(DUSTY)]
@@ -237,12 +257,23 @@ def main(argv=None):
     save(fig, figs, "Z1_red_band_diagrams", plt, record,
          "i vs i−z, r−i vs i−z and i−z vs z−y from template photometry, split by programme because bulge and plane colours are uncorrected for extinction. y-band templates exist for few objects.")
 
+
+
+def fig_z2_red_bands_by_simbad(v, figs, record, res):
+    """Z2: red-band diagrams by SIMBAD group, outside bulge and plane fields."""
+    plt = _plot_env()
+    outside = v[~v.field.isin(DUSTY)]
     # Z2 red-band diagrams by SIMBAD group (outside bulge/plane)
     res["Z2_rows"] = facet_rows(outside, outside, "simbad_group", ["Star", "QSO / AGN", "Galaxy", acd.NO_MATCH], plt, figs,
                                 "Z2_red_bands_by_simbad",
                                 "Red-band template colours outside bulge and plane fields, by Fink SIMBAD group (blue) over all such objects (grey)",
                                 record, "i vs i−z and r−i vs i−z by SIMBAD group, outside bulge and plane fields.", panels=ZPANELS[:2])
 
+
+
+def write_tables(v, out, res):
+    """Plotted-count tables and the per-object table of the g-i > 2 objects."""
+    red = v[v.red]
     # tables
     for key in ("R1", "R2", "R3", "Z2"):
         pd.DataFrame(res[f"{key}_rows"]).T.rename_axis("group").to_csv(out / "tables" / f"{key}_plotted_counts.csv")
@@ -251,10 +282,41 @@ def main(argv=None):
     red[cols].to_csv(out / "tables" / "red_gi_gt2_objects.csv", index=False)
     res["red_field"] = red.field.value_counts().to_dict()
     res["red_morph"] = red.morph.value_counts().to_dict()
-    summary = {"run": out.name, "code_sha": a.code_sha, "script_sha256": sha256(Path(__file__)),
-               "helper_sha256": sha256(Path(acd.__file__)), "template_photometry_sha256": sha256(a.template_photometry),
-               "science_table_sha256": sha256(a.science_table), "catalog_sha256": sha256(a.catalog),
-               "python": platform.python_version(), "figures": record, "results": res, "runtime_s": round(time.time() - t0, 1)}
+
+
+def build_summary(out, code_sha, template_photometry, science_table, catalog, record, res, runtime_s):
+    """Provenance and results written to summary.json."""
+    return {"run": Path(out).name, "code_sha": code_sha, "script_sha256": sha256(Path(__file__)),
+            "helper_sha256": sha256(Path(acd.__file__)), "template_photometry_sha256": sha256(template_photometry),
+            "science_table_sha256": sha256(science_table), "catalog_sha256": sha256(catalog),
+            "python": platform.python_version(), "figures": record, "results": res, "runtime_s": runtime_s}
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--template-photometry", required=True)
+    p.add_argument("--science-table", required=True)
+    p.add_argument("--catalog", required=True)
+    p.add_argument("--data-root", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument("--code-sha", required=True)
+    a = p.parse_args(argv)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "figures").mkdir()
+    (out / "tables").mkdir()
+    figs = out / "figures"
+    t0 = time.time()
+
+    v = prepare(a.template_photometry, a.science_table, a.catalog, a.data_root)
+    record, res = start_results(v)
+    fig_r0_overview(v, figs, record, res)
+    fig_r1_r3_facets(v, figs, record, res)
+    fig_d1_detection_bands(v, figs, record, res)
+    fig_z1_red_bands(v, figs, record, res)
+    fig_z2_red_bands_by_simbad(v, figs, record, res)
+    write_tables(v, out, res)
+    summary = build_summary(out, a.code_sha, a.template_photometry, a.science_table, a.catalog, record, res, round(time.time() - t0, 1))
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o)) + "\n")
     print(json.dumps({"n_red": res["n_red"], "figures": len(record), "runtime_s": summary["runtime_s"]}))
 

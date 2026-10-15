@@ -144,6 +144,15 @@ def main(argv=None):
     p.add_argument("--include-dusty", action="store_true", help="also include Galactic bulge and plane fields (no extinction correction)")
     a = p.parse_args(argv)
 
+    make_figure(a.data, a.locus, a.out, name=a.name, select=a.select, facet=a.facet, include_dusty=a.include_dusty)
+
+
+def make_figure(data, locus=None, out="figures", name=None, select=None, facet=None, include_dusty=False):
+    """Draw one figure (PNG and PDF) and return the PNG path.
+
+    data: path to the exported table or a DataFrame from load_data(); locus: path to the locus file or None;
+    select: pandas query for the blue subsample; facet: column to split into rows; include_dusty: keep the
+    Galactic bulge and plane fields (no extinction correction)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -151,36 +160,38 @@ def main(argv=None):
                          "ytick.color": INK_MUTED, "figure.dpi": 150, "axes.grid": True, "grid.color": GRID,
                          "grid.linewidth": 0.5, "axes.axisbelow": True, "savefig.bbox": "tight"})
 
-    d = load_data(a.data)
-    if not a.include_dusty:
+    d = load_data(data) if not isinstance(data, pd.DataFrame) else data
+    if not include_dusty:
         d = d[~d.field.isin(DUSTY_FIELDS)]
-    sl = load_locus(a.locus) if a.locus else None
-    sub = d.query(a.select) if a.select else None
-    scope = "all fields" if a.include_dusty else "outside Galactic bulge and plane fields"
-    locus_txt = f"red band: stellar locus ({Path(a.locus).name}) mean ± 2σ" if a.locus else "no stellar locus drawn"
-    out = Path(a.out)
+    sl = load_locus(locus) if locus else None
+    sub = d.query(select) if select else None
+    scope = "all fields" if include_dusty else "outside Galactic bulge and plane fields"
+    locus_txt = f"red band: stellar locus ({Path(locus).name}) mean ± 2σ" if locus else "no stellar locus drawn"
+    out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
 
-    if a.facet:
+    if facet:
         base = d if sub is None else sub
-        groups = [g for g in base[a.facet].dropna().value_counts().index]
+        groups = [g for g in base[facet].dropna().value_counts().index]
         fig, axes = plt.subplots(len(groups), 4, figsize=(17, 3.4 * len(groups)), constrained_layout=True, squeeze=False)
         for i, g in enumerate(groups):
             for j, (xc, yc, xr, yr) in enumerate(PANELS):
-                panel(axes[i, j], base, base[base[a.facet] == g], sl, xc, yc, xr, yr, i == len(groups) - 1)
-            axes[i, 0].set_title(f"{a.facet} = {g}", loc="left", fontsize=9, fontweight="bold")
-        what = f"grey: {'objects with ' + a.select if a.select else 'all DIA objects'}; blue: each {a.facet}"
-        name = a.name or f"colour_colour_by_{a.facet}" + ("_selected" if a.select else "")
+                panel(axes[i, j], base, base[base[facet] == g], sl, xc, yc, xr, yr, i == len(groups) - 1)
+            axes[i, 0].set_title(f"{facet} = {g}", loc="left", fontsize=9, fontweight="bold")
+        what = f"grey: {'objects with ' + select if select else 'all DIA objects'}; blue: each {facet}"
+        name = name or f"colour_colour_by_{facet}" + ("_selected" if select else "")
     else:
         fig, axes = plt.subplots(1, 4, figsize=(17, 4), constrained_layout=True)
         for ax, (xc, yc, xr, yr) in zip(axes, PANELS):
             panel(ax, d, sub, sl, xc, yc, xr, yr)
-        what = "grey: all DIA objects" + (f"; blue: {a.select}" if a.select else "")
-        name = a.name or ("colour_colour_overview" if not a.select else "colour_colour_selected")
+        what = "grey: all DIA objects" + (f"; blue: {select}" if select else "")
+        name = name or ("colour_colour_overview" if not select else "colour_colour_selected")
     fig.suptitle(f"Fink LSST DIA objects, template PSF colours ({scope}). {what}; {locus_txt}.", fontsize=9.5)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"{name}.{ext}")
+    plt.close(fig)
     print(f"wrote {out / (name + '.png')} and .pdf")
+    return out / f"{name}.png"
 
 
 if __name__ == "__main__":
