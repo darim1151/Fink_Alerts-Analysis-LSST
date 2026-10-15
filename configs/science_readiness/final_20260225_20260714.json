@@ -1,0 +1,333 @@
+{
+  "acquisitions": [
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b",
+      "bytes": 1460135494,
+      "characterization": {
+        "code_sha": "d34f6c244a2cc0c6ec6840d63e274b7c79fd7424",
+        "manifest_path": "/astro/store/shire/FINK/manifests/g4a-month1-20260225_20260325-v1/manifest.json",
+        "manifest_sha256": "1ced92d8c150383b3fdce19e4a682cf22dcc94fec462e33ab78063629f2e8da1",
+        "run_id": "g4a-month1-20260225_20260325-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/g4a-month1-20260225_20260325-v1/characterization_summary.json",
+        "summary_sha256": "47a7adf35689cc409a90f6de739a05d1b510dde7f416dbffb95073bd67c9e540"
+      },
+      "characterization_result": "PASS_WITH_LIMITATIONS",
+      "cohort_admission": "ADMITTED",
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "delivery_state": "DELIVERY_VALIDATED",
+      "parquet_files": 16591,
+      "population": {
+        "DIA": 1338941,
+        "SSO": 319701,
+        "ambiguous": 0
+      },
+      "raw_snapshot": {
+        "files": 16591,
+        "parquet_files": 16591,
+        "stat_fingerprint": "d4287a571b3e41f9415b2fe6e38fed62d6c2949fe30d3e7315cfaa611e6b2994",
+        "total_bytes": 1460135494
+      },
+      "requested_start": "2026-02-25",
+      "requested_stop": "2026-03-25",
+      "schema_groups": {
+        "94e24bb1455f3bc2": {
+          "files": 16591,
+          "rows": 1658642
+        }
+      },
+      "topic": "ftransfer_lsst_2026-10-05_555200",
+      "validated_rows": 1658642
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-03-25_to_2026-04-25_0c852cd059fa",
+      "bytes": 72730564,
+      "characterization": {
+        "code_sha": "952b1401430d01cc1d6b00c58dac44c87225a691",
+        "manifest_path": "/astro/store/shire/FINK/manifests/g5-month2-characterization-v1/manifest.json",
+        "manifest_sha256": "30faeb3a0ce7554fa4bd4dbf1c0972137847f97c29844c8be30f4030340d3ec6",
+        "run_id": "g5-month2-characterization-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/g5-month2-characterization-v1/characterization_summary.json",
+        "summary_sha256": "4081484c4c22359ab6a7588c8de30e5ce127d26a01d58966ca957d76542807ac"
+      },
+      "characterization_result": "PASS_WITH_LIMITATIONS",
+      "cohort_admission": "ADMITTED",
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "delivery_state": "DELIVERY_VALIDATED",
+      "parquet_files": 767,
+      "population": {
+        "DIA": 51978,
+        "SSO": 24155,
+        "ambiguous": 0
+      },
+      "raw_snapshot": {
+        "files": 767,
+        "parquet_files": 767,
+        "stat_fingerprint": "1ebaf51679e28e2afeca73d1abe211b1ed0a4afef91d34cb83939e8177718412",
+        "total_bytes": 72730564
+      },
+      "requested_start": "2026-03-25",
+      "requested_stop": "2026-04-25",
+      "schema_groups": {
+        "94e24bb1455f3bc2": {
+          "files": 767,
+          "rows": 76133
+        }
+      },
+      "topic": "ftransfer_lsst_2026-10-06_270011",
+      "validated_rows": 76133
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-04-25_to_2026-05-25_1ccf601aa29f",
+      "bytes": 143714745,
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month3-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "f863443978a9d91708bf2e58e7e32cee38bf95e8fecf6bae9c59af86b2103d66",
+        "run_id": "final-month3-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month3-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "dcd47100a8d58f5b04b95e2b7d651da3ba7f72cf0e03b518ebd0673a50915e47"
+      },
+      "characterization_result": "PASS_WITH_LIMITATIONS",
+      "cohort_admission": "ADMITTED",
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "delivery_state": "DELIVERY_VALIDATED",
+      "parquet_files": 2668,
+      "population": {
+        "DIA": 239805,
+        "SSO": 26691,
+        "ambiguous": 0
+      },
+      "raw_snapshot": {
+        "files": 2668,
+        "parquet_files": 2668,
+        "stat_fingerprint": "860dbd9309d1d105ac3bc71f5e67d6591a162a999d3f89ac697a1373ab3316fc",
+        "total_bytes": 143714745
+      },
+      "requested_start": "2026-04-25",
+      "requested_stop": "2026-05-25",
+      "schema_groups": {
+        "94e24bb1455f3bc2": {
+          "files": 2668,
+          "rows": 266496
+        }
+      },
+      "topic": "ftransfer_lsst_2026-10-06_644744",
+      "validated_rows": 266496
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-05-25_to_2026-06-25_ecc26d8ca904",
+      "bytes": 407951807,
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month4-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "3c230a22d009522839422761090c8606c4c87db08f4f30b2314c2aa53c4e0bef",
+        "run_id": "final-month4-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month4-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "b1bf36bfb159a70851d7eba681137d7d558f8aab3bbe672f9095ed2ff1745fd8"
+      },
+      "characterization_result": "PASS_WITH_LIMITATIONS",
+      "cohort_admission": "ADMITTED",
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "delivery_state": "DELIVERY_VALIDATED",
+      "parquet_files": 9242,
+      "population": {
+        "DIA": 882831,
+        "SSO": 40836,
+        "ambiguous": 0
+      },
+      "raw_snapshot": {
+        "files": 9242,
+        "parquet_files": 9242,
+        "stat_fingerprint": "5ff07166f92140ae17d4e69116bde05a6ac9c226cec9242171fd6c884f8047cb",
+        "total_bytes": 407951807
+      },
+      "requested_start": "2026-05-25",
+      "requested_stop": "2026-06-25",
+      "schema_groups": {
+        "94e24bb1455f3bc2": {
+          "files": 9242,
+          "rows": 923667
+        }
+      },
+      "topic": "ftransfer_lsst_2026-10-06_863953",
+      "validated_rows": 923667
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-06-25_to_2026-07-14_1ad0e9dadca7",
+      "bytes": 1813007795,
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month5-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "246df4734a2c9893b9be6080971f15aef23d08c4cd5a9b075cbd0ec081221e77",
+        "run_id": "final-month5-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month5-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "d2db345bf0403e30863731df9eba34ed65267e75afda9c27954bdcef53b2a1cc"
+      },
+      "characterization_result": "PASS_WITH_LIMITATIONS",
+      "cohort_admission": "ADMITTED",
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "delivery_state": "DELIVERY_VALIDATED",
+      "parquet_files": 41774,
+      "population": {
+        "DIA": 3797809,
+        "SSO": 379200,
+        "ambiguous": 0
+      },
+      "raw_snapshot": {
+        "files": 41774,
+        "parquet_files": 41774,
+        "stat_fingerprint": "b123af11f4e09938d2ab550dff74a7c7a9c5f8a6e6f3da5e6abac87ba02b041e",
+        "total_bytes": 1813007795
+      },
+      "requested_start": "2026-06-25",
+      "requested_stop": "2026-07-14",
+      "schema_groups": {
+        "94e24bb1455f3bc2": {
+          "files": 41774,
+          "rows": 4177009
+        }
+      },
+      "topic": "ftransfer_lsst_2026-10-06_945583",
+      "validated_rows": 4177009
+    }
+  ],
+  "analytical_build": {
+    "DIA_rows": 6311364,
+    "SSO_rows": 790583,
+    "ambiguous_rows": 0,
+    "catalog_path": "/astro/store/shire/FINK/data/processed/final-five-window-analytics-20261006-v1/analytics.duckdb",
+    "catalog_sha256": "bb308e3106d4ea3f8323e8e7032b73e84588275a546b31f3794dc23d18e5cefb",
+    "code_sha": "7e58b13c77bd0e4bc81e41e3c2b4759db382499b",
+    "completion_status": "PASS_WITH_LIMITATIONS",
+    "contract_id": "analysis_contract_v1",
+    "daily_coverage": {
+      "days_with_rows": 68,
+      "requested_days": 139,
+      "semantics": "zero_rows_in_validated_Fink_delivery",
+      "zero_delivery_dates": [
+        "2026-03-05",
+        "2026-03-11",
+        "2026-03-12",
+        "2026-03-13",
+        "2026-03-14",
+        "2026-03-15",
+        "2026-03-16",
+        "2026-03-17",
+        "2026-03-18",
+        "2026-03-19",
+        "2026-03-20",
+        "2026-03-21",
+        "2026-03-22",
+        "2026-03-23",
+        "2026-03-24",
+        "2026-03-25",
+        "2026-03-26",
+        "2026-03-27",
+        "2026-03-28",
+        "2026-03-29",
+        "2026-03-30",
+        "2026-03-31",
+        "2026-04-01",
+        "2026-04-02",
+        "2026-04-03",
+        "2026-04-17",
+        "2026-04-18",
+        "2026-04-19",
+        "2026-04-20",
+        "2026-04-23",
+        "2026-04-24",
+        "2026-04-25",
+        "2026-04-26",
+        "2026-04-27",
+        "2026-04-28",
+        "2026-04-29",
+        "2026-05-03",
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-10",
+        "2026-05-11",
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-20",
+        "2026-05-21",
+        "2026-05-28",
+        "2026-06-02",
+        "2026-06-03",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-21",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-04",
+        "2026-07-05",
+        "2026-07-08"
+      ]
+    },
+    "derived_DIA_object_groups": 3487175,
+    "global_source_uniqueness": {
+      "distinct_source_ids": 7101947,
+      "duplicate_excess_rows": 0,
+      "status": "VERIFIED",
+      "total_rows": 7101947,
+      "unmapped_rows": 0
+    },
+    "manifest_path": "/astro/store/shire/FINK/manifests/final-five-window-analytics-20261006-v1/manifest.json",
+    "manifest_sha256": "166fc39792fbe41a68f03e2b3024f677e6ba0d76916da475938e0a66c2e52ac8",
+    "raw_rows_copied": 0,
+    "read_only_reopen": "VERIFIED",
+    "run_id": "final-five-window-analytics-20261006-v1",
+    "total_source_rows": 7101947
+  },
+  "audited_utc": "2026-10-06T10:45:50.484381+00:00",
+  "authoritative_data_deleted": false,
+  "code_sha": "7e58b13c77bd0e4bc81e41e3c2b4759db382499b",
+  "cohort": {
+    "acquisition_count": 5,
+    "canonical_sha256": "65117ce378064135b40bea714ac630407b0c8fef209a1089ee80f5a49237deda",
+    "file_sha256": "bc0ea4c3fca878e508614a1b68244b67635e4e90b6d154a947678cbd5296bd33",
+    "gaps": [],
+    "name": "accepted_five_window_20260225_20260714",
+    "overlaps": [],
+    "path": "configs/analysis_cohorts/final_20260225_20260714.json",
+    "requested_calendar_days": 139,
+    "start": "2026-02-25",
+    "stop": "2026-07-14"
+  },
+  "contradictions": [],
+  "credentials_exposed": false,
+  "large_science_data_committed": false,
+  "limitations": [
+    "Benchmark results are cache-influenced and do not qualify untested larger scales.",
+    "Broker feature and prediction availability does not establish scientific validity.",
+    "Broker pred/clf/lc_features/xm/misc values are evolving source-time snapshots, not timeless object properties.",
+    "DIA object summaries describe only delivered detections within this cohort and are explicitly derived.",
+    "DuckDB snapshot JSON may preserve NaN/Infinity; downstream exports and aggregations require an explicit finite-value policy.",
+    "Feature history/reset rules, photometric/calibration validity and classifier validity are not independently qualified.",
+    "Light Static lacks full history, forced photometry, full DIA records and SSO identity/orbits.",
+    "Light Static packet is not Full Packet; source rows are not canonical objects or complete lightcurves.",
+    "SSO classification is supported by pred.is_sso and DIA association accounting; independent SSO identity/orbits are absent.",
+    "Shire storage is not backed up; raw data and analytical catalogs remain external to Git.",
+    "Validated Fink delivery does not establish Rubin scientific completeness.",
+    "Zero rows in a requested date do not establish zero Rubin alerts."
+  ],
+  "prior_runs_overwritten": false,
+  "project_readiness": "SCALE_READY_WITH_LIMITATIONS",
+  "raw_data_modified": false,
+  "result": "PASS_WITH_LIMITATIONS",
+  "scientific_admissibility": "qualified for analysis under the documented Fink Light Static contract and exact cohort scope"
+}
