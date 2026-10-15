@@ -4,7 +4,8 @@
 Implements the analyses in docs/FINK_ANALYSIS_RECOMMENDATIONS_20260225_20260714.md:
 
   S  survey context: sky density, nightly delivered alerts, field composition, field tables
-  C  star/galaxy colour panels from Legacy DR8 pstar (extended = red contours, point-like = blue dots)
+  C  template colour panels split by Legacy DR8 pstar, a colour-based star likelihood (Duncan 2022; valid only for
+     Legacy PSF-type sources, whose type Fink does not deliver): pstar < 0.5 = red contours, pstar >= 0.5 = blue dots
   K  classifier validation: CATS class vs external labels (TNS, VSX, SIMBAD), recall vs detections,
      SuperNNova SN-vs-others ROC
   L  label evolution across delivered detections
@@ -385,14 +386,17 @@ def survey(src, req, out, plt, figs, tabs):
     tabs["T1"] = t1
 
 
-def star_galaxy(obj, out, plt, figs, tabs):
+def legacy_pstar_panels(obj, out, plt, figs, tabs):
     o = obj[obj.panel_a | obj.panel_b]
     ps = o.pstar
+    # Legacy DR8 pstar (Duncan 2022, VizieR VII/292) is a star likelihood from a Gaussian-mixture star-QSO model of the
+    # Legacy colours. It is given for every Legacy source but is valid only for PSF-type sources; Fink does not deliver the
+    # Legacy type, so this split is by colour-based star likelihood, not by morphology.
     ext, pt = o[ps < 0.5], o[ps >= 0.5]
-    tabs["C_counts"] = {"plotted_objects": int(len(o)), "with_pstar": int(ps.notna().sum()), "extended_pstar_lt_0.5": int(len(ext)),
-                        "point_pstar_ge_0.5": int(len(pt)), "pstar_exactly_0_or_1_frac": float(((ps == 0) | (ps == 1)).sum() / max(ps.notna().sum(), 1))}
+    tabs["C_counts"] = {"plotted_objects": int(len(o)), "with_pstar": int(ps.notna().sum()), "pstar_lt_0.5": int(len(ext)),
+                        "pstar_ge_0.5": int(len(pt)), "pstar_exactly_0_or_1_frac": float(((ps == 0) | (ps == 1)).sum() / max(ps.notna().sum(), 1))}
     fig, axes = plt.subplots(2, 2, figsize=(11, 9), constrained_layout=True)
-    # Top-left substitute: point-like fraction vs r_tmpl (with counts)
+    # Top left (in place of r PSF - CModel, which the alerts cannot provide): fraction with pstar >= 0.5 vs r_tmpl
     ax = axes[0, 0]
     a = o[o.panel_a & ps.notna()]
     bins = np.arange(15, 25.01, 0.5)
@@ -410,9 +414,9 @@ def star_galaxy(obj, out, plt, figs, tabs):
     ax.set_zorder(ax2.get_zorder() + 1)
     ax.patch.set_visible(False)
     ax.set_xlabel(r"$r_\mathrm{tmpl}$ (template PSF, AB)")
-    ax.set_ylabel("fraction point-like (Legacy DR8 pstar ≥ 0.5)")
+    ax.set_ylabel("fraction with Legacy DR8 pstar ≥ 0.5")
     ax.set_ylim(0, 1)
-    ax.set_title("Replaces r PSF − CModel: point-like fraction vs brightness", loc="left")
+    ax.set_title("In place of r PSF − CModel: fraction with star-like Legacy colours", loc="left")
     note(ax, f"n = {len(a):,}; band = 95% Wilson interval", "tr")
     pos = [(0, 1), (1, 0), (1, 1)]
     for (key, x, y, xl, yl, xr, yr, inv), (i, j) in zip(COLOUR_PANELS, pos):
@@ -425,9 +429,9 @@ def star_galaxy(obj, out, plt, figs, tabs):
         ax.set_ylim(*(yr[::-1] if inv else yr))
         ax.set_xlabel(xl)
         ax.set_ylabel(yl)
-        note(ax, f"extended (red contours, 50/80/95%): {len(e):,}\npoint-like (blue dots): {len(p):,}")
-    fig.suptitle("Template colours of alerting DIA objects split by Legacy Survey DR8 morphology (pstar), the reference-figure layout", fontsize=10)
-    save(fig, out, "C1_star_galaxy_colour_panels", figs, "Reference-figure layout rebuilt with the only morphology in the data: Legacy DR8 pstar from Fink's crossmatch. Red contours: extended (pstar < 0.5); blue dots: point-like (pstar ≥ 0.5). Top left replaces r PSF − CModel with the point-like fraction vs template r magnitude.")
+        note(ax, f"pstar < 0.5 (red contours, 50/80/95%): {len(e):,}\npstar ≥ 0.5 (blue dots): {len(p):,}")
+    fig.suptitle("Template colours of alerting DIA objects split by Legacy DR8 pstar (star likelihood from Legacy colours, Duncan 2022; valid only for PSF-type sources), reference-figure layout", fontsize=10)
+    save(fig, out, "C1_colour_panels_by_legacy_pstar", figs, "Reference-figure layout. The alerts carry no morphology, so objects are split by Legacy DR8 pstar from Fink's crossmatch: a star likelihood from the Legacy colours (Duncan 2022), valid only for Legacy PSF-type sources, whose type Fink does not deliver. Red contours: pstar < 0.5; blue dots: pstar ≥ 0.5. Top left, in place of r PSF − CModel: fraction with pstar ≥ 0.5 vs template r magnitude.")
 
 
 def classifier_validation(obj, out, plt, figs, tabs):
@@ -693,7 +697,7 @@ def distances(obj, out, plt, figs, tabs):
     ax.set_title("TNS-typed transients (spectroscopic z)", loc="left")
     ax.legend(loc="lower right", fontsize=7)
     fig.suptitle("Brightest delivered difference-flux absolute magnitude vs redshift (flat ΛCDM, Planck18 H0 and Ωm; lower limit on peak luminosity; no K or extinction correction)", fontsize=10)
-    save(fig, out, "D2_peak_absolute_magnitude", figs, "Brightest delivered difference-flux magnitude converted to absolute magnitude with host photo-z (Legacy DR8, extended hosts) or TNS redshift. Peaks are rarely sampled in Light Static, so values are lower limits on peak luminosity; the faint envelope rising with redshift is the alert detection limit (Malmquist bias), not physics.")
+    save(fig, out, "D2_peak_absolute_magnitude", figs, "Brightest delivered difference-flux magnitude converted to absolute magnitude with Legacy DR8 photo-z (matches with pstar < 0.5) or TNS redshift. Peaks are rarely sampled in Light Static, so values are lower limits on peak luminosity; the faint envelope rising with redshift is the alert detection limit (Malmquist bias), not physics.")
 
 
 def quality(src, obj, out, plt, figs, tabs):
@@ -847,7 +851,7 @@ def build_object_table(src, template_photometry):
     return dia, obj
 
 
-ANALYSES = ("survey", "star_galaxy", "classifier_validation", "label_evolution", "variability", "distances", "quality", "sso")
+ANALYSES = ("survey", "legacy_pstar_panels", "classifier_validation", "label_evolution", "variability", "distances", "quality", "sso")
 
 
 def run_analyses(src, dia, obj, req, files, out, names=ANALYSES):
@@ -859,7 +863,7 @@ def run_analyses(src, dia, obj, req, files, out, names=ANALYSES):
     style(plt)
     figs, tabs, timings = [], {}, {}
     steps = {"survey": lambda: survey(src, req, out, plt, figs, tabs),
-             "star_galaxy": lambda: star_galaxy(obj, out, plt, figs, tabs),
+             "legacy_pstar_panels": lambda: legacy_pstar_panels(obj, out, plt, figs, tabs),
              "classifier_validation": lambda: classifier_validation(obj, out, plt, figs, tabs),
              "label_evolution": lambda: label_evolution(dia, out, plt, figs, tabs),
              "variability": lambda: variability(obj, files, out, plt, figs, tabs),

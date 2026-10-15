@@ -23,7 +23,9 @@ names, types, parallax and photo-z, but no photometry). So:
   Axes say exactly this. For point sources this approximates the quiescent PSF magnitude; for galaxies it
   is the PSF-weighted flux at the DIA object's position, not a total magnitude.
 - The top-left reference panel (r PSF − CModel vs r) **cannot be made**: there is no extended-source model flux.
-  Rubin morphology is therefore unavailable. The science suite substitutes Legacy DR8 `pstar` from Fink's crossmatch.
+  Rubin morphology is therefore unavailable. The science suite splits objects by Legacy DR8 `pstar` from Fink's
+  crossmatch instead. Legacy DR8 `pstar` (Duncan 2022, VizieR VII/292) is a star likelihood from a Gaussian-mixture star–QSO model of the Legacy colours, valid only for Legacy PSF-type sources; Fink does not deliver the Legacy type, so this is a colour criterion, not morphology
+  (corrected 2026-10-15; earlier text called it point-like/extended).
 - Photometric calibration of delivered alert fluxes is not independently validated (project limitation).
 - No Galactic extinction correction is applied. 9.9% of colour-eligible objects lie at |b| < 15°.
 
@@ -101,8 +103,9 @@ across alerts. Fink versions in the data: broker 4.1 and 5.0rc0, science 8.39.0�
 Observations (inferred from the figures, not tested): the template colours trace a stellar locus with an M-dwarf
 branch at `g−r ≈ 1.4`, and SIMBAD QSO/AGN objects sit at `u−g ≈ 0–0.5` as expected for UV-excess sources.
 Of the 642 red-branch objects (`g−r > 1.2`, `r−i > 0.6`), 367 carry the Fink label "SN-like" and 128
-"non-Periodic (AGN)", while 23 have a SIMBAD stellar type and 608 have no SIMBAD object within 1″. With Legacy DR8
-morphology, 455 of 483 are point-like (science suite). These are M dwarfs, probably flaring, carrying transient and
+"non-Periodic (AGN)", while 23 have a SIMBAD stellar type and 608 have no SIMBAD object within 1″. Of the 483 with a
+Legacy DR8 `pstar`, 455 have `pstar ≥ 0.5`, i.e. star-like Legacy colours (science suite; `pstar` is a colour-based
+star likelihood, not morphology). These are M dwarfs, probably flaring, carrying transient and
 AGN labels.
 
 ## Revision after mentor review (2026-10-11, run v3)

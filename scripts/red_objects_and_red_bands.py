@@ -3,7 +3,7 @@
 
   R0  g-i > 2 objects over all colour-eligible DIA objects (template photometry, panels as in the colour run)
   R1  g-i > 2 objects faceted by Fink CATS label        R2  ... by Fink SIMBAD group
-  R3  g-i > 2 objects faceted by Gaia parallax / Legacy DR8 morphology
+  R3  g-i > 2 objects faceted by Gaia parallax / Legacy DR8 pstar (colour-based star likelihood, not morphology)
   D1  why their faint r limit is brighter: g and r template-magnitude limits, alerts by band, first-detected band
   Z1  red-band diagrams i vs i-z, r-i vs i-z, i-z vs z-y, split by programme (outside vs inside bulge/plane)
   Z2  r-i vs i-z and i vs i-z faceted by Fink SIMBAD group
@@ -32,6 +32,9 @@ RED_CUT = 2.0  # (g - i)_tmpl > 2
 BANDS = ("u", "g", "r", "i", "z", "y")
 RED, BLUE, INK, INK_MUTED, GRID = "#e34948", "#2a78d6", acd.INK, acd.INK_MUTED, acd.GRID
 DUSTY = ("Galactic bulge", "Galactic plane")
+# R3 rows, exclusive and in this order. Legacy DR8 pstar is a colour-based star likelihood (Duncan 2022), not morphology.
+PLX_PSTAR_ORDER = ("Gaia DR3 parallax S/N > 5", "Legacy DR8 pstar ≥ 0.5 (star-like colours), no Gaia parallax S/N > 5",
+                   "Legacy DR8 pstar < 0.5", "No Gaia parallax S/N > 5 and no Legacy DR8 pstar")
 
 ZPANELS = (
     # key, x, y, x label, y label, x range, y range, invert y
@@ -103,7 +106,7 @@ def facet_rows(df_bg, df, column, order, plt, figs, name, suptitle, record, capt
 
 def prepare(template_photometry, science_table, catalog, data_root):
     """Per-object table for this analysis: template photometry joined to Gaia parallax and Legacy pstar, red/blue
-    flags (g-i > 2 among objects with usable g, r, i), red-band panel flags, morphology class and first-alert band."""
+    flags (g-i > 2 among objects with usable g, r, i), red-band panel flags, parallax / pstar class and first-alert band."""
     v = pd.read_parquet(template_photometry)
     sci = pd.read_parquet(science_table, columns=["dia_object_id", "pstar", "plx", "eplx"])
     assert v.dia_object_id.is_unique and sci.dia_object_id.is_unique and len(v) == len(sci)
@@ -119,10 +122,10 @@ def prepare(template_photometry, science_table, catalog, data_root):
     v["red"] = v.panel_a & (v.gi > RED_CUT)
     v["blue"] = v.panel_a & (v.gi <= RED_CUT)
     plx_snr = v.plx / v.eplx
-    v["morph"] = np.select(
-        [(plx_snr > 5) & (v.plx > 0), v.pstar >= 0.5, v.pstar < 0.5],
-        ["Gaia DR3 parallax S/N > 5", "Legacy DR8 point-like (pstar ≥ 0.5), no Gaia parallax S/N > 5",
-         "Legacy DR8 extended (pstar < 0.5)"], "No Gaia parallax S/N > 5 and no Legacy DR8 morphology")
+    # Legacy DR8 pstar (Duncan 2022) is a star likelihood from the Legacy colours, valid only for PSF-type sources; it is
+    # not a morphology flag (Fink does not deliver the Legacy type).
+    v["plx_pstar"] = np.select(
+        [(plx_snr > 5) & (v.plx > 0), v.pstar >= 0.5, v.pstar < 0.5], PLX_PSTAR_ORDER[:3], PLX_PSTAR_ORDER[3])
 
     # First detected band (catalog, read-only)
     conn = acd.open_catalog(catalog, data_root)
@@ -174,7 +177,7 @@ def fig_r0_overview(v, figs, record, res):
 
 
 def fig_r1_r3_facets(v, figs, record, res):
-    """R1-R3: the g-i > 2 objects by Fink CATS label, SIMBAD group, and Gaia parallax / Legacy morphology."""
+    """R1-R3: the g-i > 2 objects by Fink CATS label, SIMBAD group, and Gaia parallax / Legacy DR8 pstar."""
     plt = _plot_env()
     red = v[v.red]
     order_cats = [acd.CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)]
@@ -186,11 +189,10 @@ def fig_r1_r3_facets(v, figs, record, res):
     res["R2_rows"] = facet_rows(red, red, "simbad_group", order_sim, plt, figs, "R2_red_by_simbad",
                                 f"(g−i)_tmpl > {RED_CUT:g} objects only: Fink SIMBAD crossmatch (1″, latest successful) (blue) over all g−i > 2 objects (grey)",
                                 record, "The g−i > 2 objects faceted by SIMBAD group (Fink crossmatch within 1″).")
-    order_m = ["Gaia DR3 parallax S/N > 5", "Legacy DR8 point-like (pstar ≥ 0.5), no Gaia parallax S/N > 5",
-               "Legacy DR8 extended (pstar < 0.5)", "No Gaia parallax S/N > 5 and no Legacy DR8 morphology"]
-    res["R3_rows"] = facet_rows(red, red, "morph", order_m, plt, figs, "R3_red_by_parallax_and_morphology",
-                                f"(g−i)_tmpl > {RED_CUT:g} objects only: Gaia DR3 parallax and Legacy DR8 morphology from Fink's crossmatches (blue) over all g−i > 2 objects (grey)",
-                                record, "The g−i > 2 objects split by Gaia parallax and Legacy DR8 morphology (rows are exclusive, in the order shown).")
+    res["R3_rows"] = facet_rows(red, red, "plx_pstar", list(PLX_PSTAR_ORDER), plt, figs, "R3_red_by_parallax_and_legacy_pstar",
+                                f"(g−i)_tmpl > {RED_CUT:g} objects only: Gaia DR3 parallax and Legacy DR8 pstar (star likelihood from Legacy colours, "
+                                "valid only for PSF-type sources) from Fink's crossmatches (blue) over all g−i > 2 objects (grey)",
+                                record, "The g−i > 2 objects split by Gaia parallax and Legacy DR8 pstar (rows are exclusive, in the order shown).")
 
 
 
@@ -277,11 +279,11 @@ def write_tables(v, out, res):
     # tables
     for key in ("R1", "R2", "R3", "Z2"):
         pd.DataFrame(res[f"{key}_rows"]).T.rename_axis("group").to_csv(out / "tables" / f"{key}_plotted_counts.csv")
-    cols = ["dia_object_id", "field", "cats_class_latest", "simbad_group", "morph", "first_band", "mag_u", "mag_g", "mag_r", "mag_i", "mag_z", "mag_y",
+    cols = ["dia_object_id", "field", "cats_class_latest", "simbad_group", "plx_pstar", "first_band", "mag_u", "mag_g", "mag_r", "mag_i", "mag_z", "mag_y",
             "gi", "gr", "ri", "iz", "zy", "pstar", "plx", "eplx"] + [f"n_src_{b}" for b in BANDS]
     red[cols].to_csv(out / "tables" / "red_gi_gt2_objects.csv", index=False)
     res["red_field"] = red.field.value_counts().to_dict()
-    res["red_morph"] = red.morph.value_counts().to_dict()
+    res["red_plx_pstar"] = red.plx_pstar.value_counts().to_dict()
 
 
 def build_summary(out, code_sha, template_photometry, science_table, catalog, record, res, runtime_s):

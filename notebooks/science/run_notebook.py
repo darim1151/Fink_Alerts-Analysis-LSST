@@ -2,7 +2,7 @@
 """Run science notebooks top to bottom without Jupyter (e.g. in a terminal on the data host).
 
     python run_notebook.py 01_template_colours.ipynb 02_science_suite.ipynb ...
-    python run_notebook.py --all          # 01 -> 05 in order
+    python run_notebook.py --all          # 01 -> 06 in order
 
 Each notebook's code cells run in order in a fresh namespace, from this folder, exactly as in VS Code. Figures and
 tables are written to the run folder set in _setup.py; nothing is written back into the notebooks.
@@ -18,7 +18,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ORDER = ["01_template_colours.ipynb", "02_science_suite.ipynb", "03_red_objects_and_red_bands.ipynb",
-         "04_stellar_locus.ipynb", "05_checks_and_audits.ipynb"]
+         "04_stellar_locus.ipynb", "05_checks_and_audits.ipynb", "06_paper_additions.ipynb"]
 
 
 def run(path):

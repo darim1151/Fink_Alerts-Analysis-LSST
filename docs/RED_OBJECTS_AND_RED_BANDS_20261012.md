@@ -24,11 +24,13 @@ definition, not a calculation error or a physical cutoff. Earlier figures did no
 ## What the g−i > 2 objects are
 
 661 objects: 524 in deep-drilling fields, 72 in low-dust WFD and 65 in the M49 field. 402 have a Gaia DR3
-parallax S/N > 5, 128 more are Legacy point-like, 34 are Legacy extended and 97 have neither. 23 match a SIMBAD
+parallax S/N > 5, 128 more have Legacy DR8 `pstar ≥ 0.5` (star-like colours), 34 have `pstar < 0.5` and 97 have neither. 23 match a SIMBAD
 star and 624 have no SIMBAD object within 1″. Fink labels: "SN-like" 381, "non-Periodic (AGN)" 124, "Periodic" 82,
 "Long" 53, "Fast" 21. The 145 with i and z templates lie along the M-dwarf sequence in r−i vs i−z. These are consistent with nearby, probably
-active, M dwarfs, as the mentor proposed. The 34 extended objects form the faint tail (r_tmpl ≈ 20.5–24, r−i ≈
-0.4–1.3), probably galaxies.
+active, M dwarfs, as the mentor proposed. The 34 with `pstar < 0.5` form the faint tail (r_tmpl ≈ 20.5–24, r−i ≈
+0.4–1.3); their nature is not settled by `pstar`.
+Correction (2026-10-15): Legacy DR8 `pstar` (Duncan 2022, VizieR VII/292) is a star likelihood from a Gaussian-mixture star–QSO model of the Legacy colours, valid only for Legacy PSF-type sources; Fink does not deliver the Legacy type. Earlier versions of this note called these groups "point-like" and
+"extended"; that was wrong.
 
 ## Red-band diagrams
 
@@ -44,7 +46,7 @@ limited to 312 objects.
 ## Figures
 
 R0 g−i > 2 objects over all colour-eligible objects. R1 by Fink CATS label. R2 by SIMBAD group (1″, latest successful
-crossmatch). R3 by Gaia parallax and Legacy morphology (rows exclusive, in order). D1 g and r limits, alert share by
+crossmatch). R3 by Gaia parallax and Legacy DR8 `pstar` (rows exclusive, in order; file name now `R3_red_by_parallax_and_legacy_pstar`). D1 g and r limits, alert share by
 band, first-alert band. Z1 red-band diagrams by programme. Z2 red-band diagrams by SIMBAD group outside bulge and
 plane.
 

@@ -69,7 +69,7 @@ Each panel prints how many objects it shows.
 | `mag_<band>`, `magerr_<band>` | template PSF magnitude (AB) and its error; empty where the band is not usable |
 | `fink_cats_code`, `fink_cats_label` | Fink CATS label at the latest alert (a classifier output, not a verified type) |
 | `simbad_otype`, `simbad_group` | SIMBAD type from Fink's crossmatch within 1″ (latest successful crossmatch) and its group |
-| `legacy_pstar` | Legacy Survey DR8 point-source probability from Fink's crossmatch |
+| `legacy_pstar` | Legacy Survey DR8 `pstar` from Fink's crossmatch: a star likelihood from the Legacy colours (Duncan 2022), valid only for Legacy PSF-type sources. It is not a morphology flag. |
 | `gaia_parallax_mas`, `gaia_parallax_err_mas` | Gaia DR3 parallax and error from Fink's crossmatch |
 
 Derived in the script: `ug`, `gr`, `ri`, `iz`, `zy` (adjacent colours), `gi`, and `has_ugr`, `has_gri`, `has_riz`, `has_izy`

@@ -21,10 +21,11 @@ Among the 8,293 objects in the current colour panels: 5,552 have Legacy `pstar` 
 
 ## 2. Recommended next analyses, in priority order
 
-1. **Star/galaxy split from Legacy DR8 `pstar`.** This is the closest honest substitute for the missing PSF − CModel
-   panel. Draw the three panels with `pstar ≥ 0.5` and `< 0.5` as two contour sets (the red/blue control idea), and add a
-   `pstar` vs `r_tmpl` panel in place of the top-left one. First result already visible: most plotted objects (4,600 of
-   5,552 with `pstar`) are extended, so the colour panels are dominated by transients on galaxies.
+1. **Colour split by Legacy DR8 `pstar`.** The alerts carry no morphology, so there is no PSF − CModel panel.
+   Legacy DR8 `pstar` (Duncan 2022, VizieR VII/292) is a star likelihood from a Gaussian-mixture star–QSO model of the Legacy colours, valid only for Legacy PSF-type sources; Fink does not deliver the Legacy type (corrected 2026-10-15). Draw the three panels with `pstar ≥ 0.5` and `< 0.5` as two contour sets (the red/blue control idea), and add a
+   `pstar` vs `r_tmpl` panel in place of the top-left one. First result: most plotted objects with a `pstar` (4,600 of
+   5,552) have `pstar < 0.5`, i.e. colours the star–QSO model does not call stellar. Earlier text read this as
+   "extended" and "transients on galaxies"; `pstar` does not support that reading.
 2. **Classifier validation tables.** Confusion matrices of the Fink CATS class (latest snapshot) against external
    labels: VSX/GCVS variable types (35k objects), SIMBAD QSO/AGN (9.3k), Gaia `VarFlag`, and TNS spectroscopic types
    (176 objects; small). Report precision and recall per class with bootstrap intervals, and as a function of number of

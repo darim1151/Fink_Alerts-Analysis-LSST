@@ -1,9 +1,10 @@
 # Science notebooks: Fink LSST alert analysis
 
-Five notebooks reproduce every figure, table and check of the five-window analysis
+Six notebooks reproduce every figure, table and check of the five-window analysis
 (alerts 2026-02-25 → 2026-07-13). They call the same functions that made the delivered figures, in
 `scripts/alert_colour_diagrams.py`, `scripts/alert_science_suite.py`, `scripts/red_objects_and_red_bands.py`,
-`scripts/export_colour_plot_table.py`, `scripts/fink_checks.py` and `tools/colour_plot_kit/plot_colour_diagrams.py`.
+`scripts/export_colour_plot_table.py`, `scripts/fink_checks.py`, `scripts/paper_sample_figures.py` and
+`tools/colour_plot_kit/plot_colour_diagrams.py`.
 Run on the same catalog, they give the same numbers.
 
 | Notebook | What it makes | Needs | Time |
@@ -13,6 +14,7 @@ Run on the same catalog, they give the same numbers.
 | `03_red_objects_and_red_bands` | R0–R3, D1, Z1–Z2 (g−i > 2 objects, i/z/y diagrams) | 01, 02 | ~1 min |
 | `04_stellar_locus` | L1–L6 with the Rubin stellar locus; Gaia-star residuals; exported colour table | 01, 02, locus file | ~1 min |
 | `05_checks_and_audits` | raw re-derivation, crossmatch failures, RR Lyrae and labels, RTN-099 u conversion, magnitude assembly | 01, 02 | ~5 min |
+| `06_paper_additions` | P1–P3 sample description and SIMBAD-matched vs unmatched magnitudes; T1–T3 same-night difference-flux (transient) colours; per-figure counts | 01, 04, locus file | ~10 min |
 
 Run them in order. Each one writes into its own new folder under `OUTPUT_ROOT/RUN_ID/`. Nothing is ever overwritten,
 and nothing is written into the raw data, the catalog or the manifests.
@@ -28,7 +30,7 @@ connects to it.
 3. Open `notebooks/science/01_template_colours.ipynb`. Under **Select Kernel → Python Environments**, choose the
    notebook environment `/astro/store/shiren/mdarim/envs/fink-lsst-notebooks-py311/bin/python`. It has the same
    package versions as the environment that made the delivered figures, plus Jupyter support.
-4. Click **Run All**. Do the same for 02, 03, 04 and 05.
+4. Click **Run All**. Do the same for 02, 03, 04, 05 and 06.
 
 Without VS Code, the same notebooks run in a terminal on Arnor:
 
@@ -58,7 +60,7 @@ counts. Nothing in them is tied to the current five deliveries.
 2. Add its acquisition to a new cohort file under `configs/analysis_cohorts/` and build a new analytical catalog:
    `scripts/build_analytical_catalog.py build --cohort <new cohort> --data-root /astro/store/shire/FINK --run-id <new id>`.
 3. In `_setup.py`, set `CATALOG` to the new `analytics.duckdb` and `RUN_ID` to a new name.
-4. Run notebooks 01 → 05.
+4. Run notebooks 01 → 06.
 
 The "reference values" printed in the notebook text are for the current cohort. A larger cohort gives larger numbers.
 
