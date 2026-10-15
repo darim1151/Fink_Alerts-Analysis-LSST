@@ -14,7 +14,7 @@ Run on the same catalog, they give the same numbers.
 | `03_red_objects_and_red_bands` | R0–R3, D1, Z1–Z2 (g−i > 2 objects, i/z/y diagrams) | 01, 02 | ~1 min |
 | `04_stellar_locus` | L1–L6 with the Rubin stellar locus; Gaia-star residuals; exported colour table | 01, 02, locus file | ~1 min |
 | `05_checks_and_audits` | raw re-derivation, crossmatch failures, RR Lyrae and labels, RTN-099 u conversion, magnitude assembly | 01, 02 | ~5 min |
-| `06_paper_additions` | P1–P3 sample description and SIMBAD-matched vs unmatched magnitudes; T1–T3 same-night difference-flux (transient) colours; per-figure counts | 01, 04, locus file | ~10 min |
+| `06_paper_additions` | P1–P3 sample description and SIMBAD-matched vs unmatched magnitudes; T1–T3 same-night difference-flux (transient) colours; per-figure counts | 01, 02, 04, locus file | ~2 min |
 
 Run them in order. Each one writes into its own new folder under `OUTPUT_ROOT/RUN_ID/`. Nothing is ever overwritten,
 and nothing is written into the raw data, the catalog or the manifests.

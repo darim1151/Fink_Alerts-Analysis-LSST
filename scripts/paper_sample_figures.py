@@ -6,12 +6,14 @@
   fig_p1_sample                P1: alerts per band, detections per object, alert (difference-flux) magnitudes, template magnitudes
   fig_p2_galactic_latitude     P2: Galactic latitude of DIA objects and SSO alerts
   fig_p3_simbad_magnitudes     P3: template magnitudes of DIA objects with a SIMBAD type, with no SIMBAD object within 1",
-                               and with a failed crossmatch; fraction with a SIMBAD type vs template i magnitude
+                               and with a failed crossmatch (all fields, outside and inside bulge/plane); fractions with a
+                               SIMBAD type and with a Gaia DR3 source vs template i magnitude
   transient_colours            same-night difference-flux colours g-r and r-i (the colour of the brightening itself)
   fig_t1_t3_transient_colours  T1 overview, T2 by Fink CATS label, T3 by SIMBAD group
   paper_figure_counts          objects per panel and per row of figures 1-3 (notebook 01) and L3-L4 (notebook 04)
 
-Inputs: notebook 01's per-object template table, notebook 04's exported colour table, the catalog's pinned raw files
+Inputs: notebook 01's per-object template table, notebook 02's science table (Gaia name), notebook 04's exported colour
+table, the catalog's pinned raw files
 (read through alert_science_suite) and the stellar-locus file. Used by notebooks/science/06_paper_additions.ipynb.
 """
 from __future__ import annotations
@@ -168,53 +170,81 @@ def fig_p2_galactic_latitude(src, tp, figs_dir, record):
                  "Galactic latitude of DIA objects (mean position of their delivered alerts) and of SSO alerts.")
 
 
-def fig_p3_simbad_magnitudes(tp, figs_dir, record, res):
-    """P3: template i and r magnitudes of DIA objects with a SIMBAD type, with no SIMBAD object within 1", and with a
-    crossmatch that failed on every alert (the groups of figure 3); and the fraction with a SIMBAD type vs i_tmpl among
-    objects whose crossmatch was answered."""
+def _fraction(ax, mag, flag, bins, color, label, min_n=20):
+    """Fraction of objects with `flag` per magnitude bin, with 95% Wilson intervals (bins with >= min_n objects)."""
+    k, _ = np.histogram(mag[flag], bins)
+    n, _ = np.histogram(mag, bins)
+    c = 0.5 * (bins[1:] + bins[:-1])
+    good = n >= min_n
+    lo, hi = np.array([suite.wilson(kk, nn) for kk, nn in zip(k, n)]).T
+    ax.fill_between(c[good], lo[good], hi[good], color=color, alpha=0.18, lw=0)
+    ax.plot(c[good], (k / np.maximum(n, 1))[good], "-o", color=color, ms=3, lw=1.5, label=label)
+    return [{"lo": float(bins[j]), "hi": float(bins[j + 1]), "objects": int(n[j]), "with_flag": int(k[j])} for j in range(len(n))]
+
+
+def fig_p3_simbad_magnitudes(tp, sci, figs_dir, record, res):
+    """P3: template magnitudes of DIA objects with a SIMBAD type, with no SIMBAD object within 1", and with a crossmatch
+    that failed on every alert (the groups of figure 3), for all fields, outside the bulge and plane fields, and inside
+    them; the fraction with a SIMBAD type vs i_tmpl; and the fraction with a Gaia DR3 source within 1" vs i_tmpl.
+    sci: the science table of notebook 02 (dia_object_id, gaia_name)."""
     plt = _plt()
-    typed = tp.simbad_group.isin(SIMBAD_TYPED)
-    groups = [("SIMBAD type", typed, BLUE), (acd.NO_MATCH, tp.simbad_group == acd.NO_MATCH, GREY),
-              (acd.XM_FAILED, tp.simbad_group == acd.XM_FAILED, ORANGE)]
-    assert sum(int(m.sum()) for _, m, _ in groups) == len(tp)
-    fig, axes = plt.subplots(1, 3, figsize=(17, 4.5), constrained_layout=True)
+    d = tp.merge(sci[["dia_object_id", "gaia_name"]], on="dia_object_id", how="left", validate="one_to_one")
+    assert len(d) == len(tp)
+    typed = d.simbad_group.isin(SIMBAD_TYPED)
+    nomatch = d.simbad_group == acd.NO_MATCH
+    failed = d.simbad_group == acd.XM_FAILED
+    assert int(typed.sum() + nomatch.sum() + failed.sum()) == len(d)
+    groups = [("SIMBAD type", typed, BLUE), (acd.NO_MATCH, nomatch, GREY), (acd.XM_FAILED, failed, ORANGE)]
+    dusty = d.field.isin(DUSTY)
+    scopes = [("all fields", pd.Series(True, index=d.index)), ("outside bulge and plane", ~dusty), ("bulge and plane fields", dusty)]
+    fig, axes = plt.subplots(2, 3, figsize=(17, 9), constrained_layout=True)
     bins = np.arange(12, 27.01, 0.25)
     out = {}
-    for ax, b in zip(axes[:2], ("i", "r")):
+    panels = [(axes[0, 0], "i", scopes[0]), (axes[0, 1], "i", scopes[1]), (axes[0, 2], "i", scopes[2]), (axes[1, 0], "r", scopes[0])]
+    for ax, b, (sname, sm) in panels:
+        top = 0.0
         for name, m, c in groups:
-            v = tp.loc[m & tp[f"ok_{b}"], f"mag_{b}"]
-            out[f"{name} | {b}"] = {"objects_in_group": int(m.sum()), "with_usable_template": int(len(v)),
-                                    "usable_fraction": round(len(v) / max(int(m.sum()), 1), 4), "mag_q05_50_95": _q(v)}
+            v = d.loc[sm & m & d[f"ok_{b}"], f"mag_{b}"]
+            out[f"{sname} | {name} | {b}"] = {"objects_in_group": int((sm & m).sum()), "with_usable_template": int(len(v)),
+                                              "mag_q05_50_95": _q(v)}
             if len(v):
-                ax.hist(v, bins, density=True, histtype="step", lw=1.8, color=c,
-                        label=f"{name}: {len(v):,} of {int(m.sum()):,} with usable {b}; median {v.median():.2f}")
+                h, _, _ = ax.hist(v, bins, density=True, histtype="step", lw=1.8, color=c,
+                                  label=f"{name}: {len(v):,} of {int((sm & m).sum()):,}; median {v.median():.2f}")
+                top = max(top, float(h.max()))
+        ax.set_ylim(0, 1.55 * top if top else 1)
         ax.set_xlim(bins[0], bins[-1])
         ax.set_xlabel(f"${b}_\\mathrm{{tmpl}}$ (template PSF, AB)")
         ax.set_ylabel("normalised per 0.25 mag")
-        ax.set_title(f"{b} band", loc="left")
-        ax.legend(loc="upper left", fontsize=7)
-    ax = axes[2]
-    ans = tp[(tp.simbad_group != acd.XM_FAILED) & tp.ok_i]
+        ax.set_title(f"{b} band, {sname}", loc="left")
+        ax.legend(loc="upper left", fontsize=7, title=f"objects with usable {b} template / all in group", title_fontsize=7)
     fb = np.arange(14, 25.01, 0.5)
-    k, _ = np.histogram(ans.mag_i[ans.simbad_group.isin(SIMBAD_TYPED)], fb)
-    n, _ = np.histogram(ans.mag_i, fb)
-    c = 0.5 * (fb[1:] + fb[:-1])
-    good = n >= 20
-    lo, hi = np.array([suite.wilson(kk, nn) for kk, nn in zip(k, n)]).T
-    ax.fill_between(c[good], lo[good], hi[good], color=BLUE, alpha=0.2, lw=0)
-    ax.plot(c[good], (k / np.maximum(n, 1))[good], "-o", color=BLUE, ms=3.5, lw=1.6)
-    ax.set_ylim(0, 1)
+    ax = axes[1, 1]
+    ans = d.ok_i & ~failed
+    for (sname, sm), col in zip(scopes, (INK, BLUE, ORANGE)):
+        s = ans & sm
+        out[f"fraction_typed_vs_i_tmpl | {sname}"] = _fraction(ax, d.mag_i[s], typed[s], fb, col, f"{sname} ({int(s.sum()):,})")
+    ax.set_ylim(0, None)
     ax.set_xlabel(r"$i_\mathrm{tmpl}$ (template PSF, AB)")
     ax.set_ylabel("fraction with a SIMBAD type within 1″")
-    ax.set_title(f"Crossmatch answered, usable i: {len(ans):,} objects (band: 95% Wilson)", loc="left")
-    out["fraction_typed_vs_i_tmpl"] = [{"i_lo": float(fb[j]), "i_hi": float(fb[j + 1]), "objects": int(n[j]), "typed": int(k[j])}
-                                       for j in range(len(n))]
+    ax.set_title("Objects whose SIMBAD crossmatch was answered", loc="left")
+    ax.legend(loc="upper right", fontsize=7)
+    ax = axes[1, 2]
+    gaia = d.gaia_name.notna()
+    for name, m, c in groups[:2]:
+        s = d.ok_i & m
+        out[f"fraction_gaia_vs_i_tmpl | {name}"] = _fraction(ax, d.mag_i[s], gaia[s], fb, c, f"{name} ({int(s.sum()):,})")
+    ax.set_ylim(0, 1.05)
+    ax.set_xlabel(r"$i_\mathrm{tmpl}$ (template PSF, AB)")
+    ax.set_ylabel("fraction with a Gaia DR3 source within 1″")
+    ax.set_title("Gaia DR3 counterparts (Fink crossmatch)", loc="left")
+    ax.legend(loc="lower left", fontsize=7)
     fig.suptitle("DIA objects with and without a SIMBAD counterpart (Fink crossmatch within 1″): brightness on the template", fontsize=10)
     res["P3_simbad_magnitudes"] = out
     return _save(fig, figs_dir, "P3_simbad_matched_vs_unmatched", plt, record,
-                 "Left, middle: template i and r magnitudes of DIA objects with a SIMBAD type, with no SIMBAD object within "
-                 "1 arcsec, and with a crossmatch that failed on every alert (normalised; legends give counts and medians). "
-                 "Right: fraction with a SIMBAD type against template i magnitude, for objects whose crossmatch was answered.")
+                 "Top and bottom left: template magnitudes of DIA objects with a SIMBAD type, with no SIMBAD object within "
+                 "1 arcsec, and with a crossmatch that failed on every alert (normalised), for all fields, outside the bulge and "
+                 "plane fields, and inside them. Bottom middle: fraction with a SIMBAD type against template i magnitude. Bottom "
+                 "right: fraction with a Gaia DR3 source within 1 arcsec (a lower limit where Fink's Gaia crossmatch failed).")
 
 
 # ============================================================================= transient colours
@@ -306,7 +336,7 @@ def fig_t1_t3_transient_colours(tc, tp, locus_file, figs_dir, record, res):
     axes[0].set_title("Static sky: template colours", loc="left")
     _tpanel(axes[1], static, t, sl, "transients (blue)")
     axes[1].set_title("The change: same-night difference-flux colours (blue)\nover the template colours (grey)", loc="left")
-    axes[2].hist(t.span_hours, bins=np.arange(0, 12.01, 0.25), color=BLUE)
+    axes[2].hist(t.span_hours, bins=np.arange(0, max(6.0, np.ceil(t.span_hours.max())) + 0.01, 0.25), color=BLUE)
     axes[2].set_xlabel("time from first to last g, r, i alert used (hours)")
     axes[2].set_ylabel("objects")
     axes[2].set_title("How close in time the three bands are", loc="left")
