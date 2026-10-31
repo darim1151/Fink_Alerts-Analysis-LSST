@@ -182,23 +182,22 @@ def plot(run, rows, out_png, out_pdf, max_dpa, per_row=5):
                 data, header, wcs, _ = load_stamp(Path(run) / r[f"{kind}_file"])
                 ax.imshow(np.ma.masked_invalid(data), origin="lower", cmap=cmap, norm=norms(data, kind),
                           interpolation="nearest")
-                if gi == 0:
-                    ax.set_xlabel({"science": "sci", "template": "tmpl", "difference": "diff"}[kind], fontsize=6,
-                                  labelpad=1)
-                    ax.xaxis.set_label_position("top")
+                if gi == len(groups) - 1:
+                    ax.set_xlabel({"science": "science", "template": "template", "difference": "difference"}[kind],
+                                  fontsize=6, labelpad=2)
                 if kind == "template":
-                    ax.set_title(f"{r['name']}  {r['band']}  S/N {float(r['snr']):.0f}", fontsize=6.5, pad=7 if gi == 0 else 2)
+                    ax.set_title(f"{r['name']}  {r['band']}  S/N {float(r['snr']):+.0f}", fontsize=6.5, pad=2)
                     if orientation_ok(header, wcs, data.shape, max_dpa):
                         ny, nx = data.shape
-                        base = np.array([0.18 * nx, 0.18 * ny])
+                        base = np.array([0.27 * nx, 0.27 * ny])
                         for label, v in compass(wcs, data.shape).items():
-                            tip = base + 0.14 * min(nx, ny) * v
+                            tip = base + 0.15 * min(nx, ny) * v
                             ax.annotate("", xy=tip, xytext=base, arrowprops=dict(arrowstyle="-|>", color="#ffcc00", lw=0.6,
                                                                                  mutation_scale=4))
-                            ax.text(*(base + 0.21 * min(nx, ny) * v), label, color="#ffcc00", fontsize=4.5,
+                            ax.text(*(base + 0.23 * min(nx, ny) * v), label, color="#ffcc00", fontsize=5,
                                     ha="center", va="center")
         axes[gi][0].set_ylabel(group.replace(", ", ",\n"), fontsize=6.5, rotation=0, ha="right", va="center", labelpad=4)
-    fig.subplots_adjust(left=0.115, right=0.995, top=0.95, bottom=0.01, wspace=0.04, hspace=0.28)
+    fig.subplots_adjust(left=0.115, right=0.995, top=0.97, bottom=0.04, wspace=0.04, hspace=0.28)
     fig.savefig(out_png, dpi=220)
     fig.savefig(out_pdf)
     plt.close(fig)
