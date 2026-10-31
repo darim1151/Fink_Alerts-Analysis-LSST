@@ -2,8 +2,10 @@
 """Plot the alert stamps fetched by scripts/fetch_alert_stamps.py: one science / template / difference triplet per target.
 
 Reads a stamp run folder (stamps.csv, stamps/*.fits), checks every FITS file against the SHA-256 recorded in stamps.csv,
-and draws one row per target group with five triplets each. Stamps are shown in pixel orientation; when a stamp carries
-a celestial WCS, the template panel gets north (N) and east (E) arrows computed from it. Science and template stamps
+and draws one row per target group with five triplets each. Stamps are shown in pixel orientation; the template panel
+gets north (N) and east (E) arrows from the stamp's WCS. Fink's FITS stamps carry CRVAL/CRPIX/PC keywords but no CTYPE;
+the WCS is then read as RA---TAN/DEC--TAN (axis 1 = RA, axis 2 = Dec) and accepted only if the position angle of the
+pixel +Y axis it implies agrees with the header's ROTPA within --max-dpa degrees. Science and template stamps
 are each scaled separately (asinh between their 1st and 99.5th percentiles); the difference stamp uses a symmetric
 linear scale (+/- its 99.5th percentile of |pixel|), so positive and negative residuals keep their sign.
 Writes alert_stamps.png, alert_stamps.pdf, stamp_properties.csv and summary.json to a new directory.
@@ -29,10 +31,33 @@ def sha256(path):
     return h.hexdigest()
 
 
+WCS_KEYS = ("CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2")
+SCALE_KEYS = ("PC1_1", "CD1_1", "CDELT1")
+
+
+def stamp_wcs(header):
+    """(celestial WCS or None, source): 'header' if CTYPE is given, 'TAN assumed' if only CRVAL/CRPIX and PC, CD or
+    CDELT are."""
+    import warnings
+
+    from astropy.wcs import WCS, FITSFixedWarning
+
+    h = header.copy()
+    if "CTYPE1" in h and "CTYPE2" in h:
+        source = "header"
+    elif all(k in h for k in WCS_KEYS) and any(k in h for k in SCALE_KEYS):
+        h["CTYPE1"], h["CTYPE2"], source = "RA---TAN", "DEC--TAN", "TAN assumed"
+    else:
+        return None, "none"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FITSFixedWarning)
+        w = WCS(h)
+    return (w.celestial, source) if w.has_celestial else (None, "none")
+
+
 def load_stamp(path):
-    """(data as float array, header, celestial WCS or None) from the first 2-D image HDU."""
+    """(data as float array, primary header, celestial WCS or None, WCS source) from the first 2-D image HDU."""
     from astropy.io import fits
-    from astropy.wcs import WCS
 
     with fits.open(path) as hdul:
         for hdu in hdul:
@@ -41,11 +66,29 @@ def load_stamp(path):
                 break
         else:
             raise ValueError(f"{path}: no 2-D image")
-    wcs = None
-    if "CTYPE1" in header and "CTYPE2" in header:
-        w = WCS(header)
-        wcs = w.celestial if w.has_celestial else None
-    return data, header, wcs
+    wcs, source = stamp_wcs(header)
+    return data, header, wcs, source
+
+
+def pa_of_y_axis(wcs, shape):
+    """Position angle (deg, north through east) of the pixel +Y direction at the stamp centre."""
+    y0, x0 = (shape[0] - 1) / 2.0, (shape[1] - 1) / 2.0
+    a, b = wcs.pixel_to_world(x0, y0), wcs.pixel_to_world(x0, y0 + 1.0)
+    return float(a.position_angle(b).deg) % 360.0
+
+
+def dpa_from_rotpa(header, wcs, shape):
+    """WCS position angle of +Y minus the header's ROTPA, wrapped to [-180, 180); None without ROTPA or WCS."""
+    if wcs is None or "ROTPA" not in header:
+        return None
+    return (pa_of_y_axis(wcs, shape) - float(header["ROTPA"]) + 180.0) % 360.0 - 180.0
+
+
+def orientation_ok(header, wcs, shape, max_dpa):
+    if wcs is None:
+        return False
+    dpa = dpa_from_rotpa(header, wcs, shape)
+    return dpa is None or abs(dpa) <= max_dpa
 
 
 def compass(wcs, shape):
@@ -82,15 +125,20 @@ def read_run(run):
     return rows
 
 
-def stamp_properties(run, rows):
+def stamp_properties(run, rows, max_dpa):
     props = []
     for r in rows:
         for kind in KINDS:
-            data, header, wcs = load_stamp(Path(run) / r[f"{kind}_file"])
+            data, header, wcs, source = load_stamp(Path(run) / r[f"{kind}_file"])
+            dpa = dpa_from_rotpa(header, wcs, data.shape)
             props.append({"name": r["name"], "kind": kind, "dia_source_id": r["dia_source_id"],
                           "ny": data.shape[0], "nx": data.shape[1], "n_nonfinite": int((~np.isfinite(data)).sum()),
-                          "bunit": str(header.get("BUNIT", "")), "has_wcs": wcs is not None,
-                          "pixel_scale_arcsec": round(pixel_scale_arcsec(wcs), 4) if wcs is not None else ""})
+                          "bunit": str(header.get("BUNIT", "")), "wcs_source": source,
+                          "pixel_scale_arcsec": round(pixel_scale_arcsec(wcs), 4) if wcs is not None else "",
+                          "pa_y_deg": round(pa_of_y_axis(wcs, data.shape), 3) if wcs is not None else "",
+                          "rotpa_deg": round(float(header["ROTPA"]), 3) if "ROTPA" in header else "",
+                          "dpa_deg": round(dpa, 3) if dpa is not None else "",
+                          "compass_drawn": orientation_ok(header, wcs, data.shape, max_dpa)})
     return props
 
 
@@ -109,7 +157,7 @@ def norms(data, kind):
     return ImageNormalize(vmin=lo, vmax=hi, stretch=AsinhStretch(a=0.1))
 
 
-def plot(run, rows, out_png, out_pdf, per_row=5):
+def plot(run, rows, out_png, out_pdf, max_dpa, per_row=5):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -131,7 +179,7 @@ def plot(run, rows, out_png, out_pdf, per_row=5):
                     ax.set_axis_off()
                     continue
                 r = members[j]
-                data, _, wcs = load_stamp(Path(run) / r[f"{kind}_file"])
+                data, header, wcs, _ = load_stamp(Path(run) / r[f"{kind}_file"])
                 ax.imshow(np.ma.masked_invalid(data), origin="lower", cmap=cmap, norm=norms(data, kind),
                           interpolation="nearest")
                 if gi == 0:
@@ -140,7 +188,7 @@ def plot(run, rows, out_png, out_pdf, per_row=5):
                     ax.xaxis.set_label_position("top")
                 if kind == "template":
                     ax.set_title(f"{r['name']}  {r['band']}  S/N {float(r['snr']):.0f}", fontsize=6.5, pad=7 if gi == 0 else 2)
-                    if wcs is not None:
+                    if orientation_ok(header, wcs, data.shape, max_dpa):
                         ny, nx = data.shape
                         base = np.array([0.18 * nx, 0.18 * ny])
                         for label, v in compass(wcs, data.shape).items():
@@ -161,12 +209,14 @@ def main(argv=None):
     p.add_argument("--stamps", required=True, help="stamp run folder from scripts/fetch_alert_stamps.py")
     p.add_argument("--out", required=True, help="new output directory (must not exist)")
     p.add_argument("--code-sha", required=True)
+    p.add_argument("--max-dpa", type=float, default=3.0,
+                   help="largest accepted difference (deg) between the WCS position angle of +Y and ROTPA")
     a = p.parse_args(argv)
     run, out = Path(a.stamps), Path(a.out)
     rows = read_run(run)
-    props = stamp_properties(run, rows)
+    props = stamp_properties(run, rows, a.max_dpa)
     out.mkdir(parents=True, exist_ok=False)
-    plot(run, rows, out / "alert_stamps.png", out / "alert_stamps.pdf")
+    plot(run, rows, out / "alert_stamps.png", out / "alert_stamps.pdf", a.max_dpa)
     with open(out / "stamp_properties.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(props[0]))
         w.writeheader()
@@ -175,7 +225,13 @@ def main(argv=None):
                "stamp_run": run.name, "stamps_csv_sha256": sha256(run / "stamps.csv"),
                "stamp_run_summary_sha256": sha256(run / "summary.json") if (run / "summary.json").exists() else None,
                "n_targets": len(rows), "n_stamps_checked": 3 * len(rows),
-               "with_wcs": sum(p["has_wcs"] for p in props), "stamp_shapes": sorted({f"{p['ny']}x{p['nx']}" for p in props}),
+               "max_dpa_deg": a.max_dpa, "wcs_sources": {k: sum(p["wcs_source"] == k for p in props)
+                                                         for k in sorted({p["wcs_source"] for p in props})},
+               "compass_drawn": sum(p["compass_drawn"] for p in props if p["kind"] == "template"),
+               "dpa_range_deg": [min(p["dpa_deg"] for p in props if p["dpa_deg"] != ""),
+                                 max(p["dpa_deg"] for p in props if p["dpa_deg"] != "")]
+               if any(p["dpa_deg"] != "" for p in props) else None,
+               "stamp_shapes": sorted({f"{p['ny']}x{p['nx']}" for p in props}),
                "files": {f.name: sha256(f) for f in sorted(out.iterdir()) if f.is_file()}}
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps({k: v for k, v in summary.items() if k != "files"}, indent=1))

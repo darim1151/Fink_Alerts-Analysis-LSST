@@ -35,6 +35,15 @@ def tan_wcs(rot_deg=0.0, n=31):
     return w
 
 
+def fink_header(rot_deg, rotpa):
+    """A header shaped like Fink's stamps: CRVAL/CRPIX/PC and ROTPA, but no CTYPE."""
+    h = tan_wcs(rot_deg).to_header()
+    del h["CTYPE1"], h["CTYPE2"]
+    h["ROTPA"] = rotpa
+    h["BUNIT"] = "nJy"
+    return h
+
+
 def make_run(tmp_path, n_groups=2, per_group=3):
     run = tmp_path / "alert-stamps-test"
     (run / "stamps").mkdir(parents=True)
@@ -50,7 +59,9 @@ def make_run(tmp_path, n_groups=2, per_group=3):
                 data[15, 15] += 50
                 if kind == "difference" and j == 0:
                     data[0, :] = np.nan
-                header = tan_wcs(30.0 * j).to_header() if j < 2 else fits.Header()
+                header = fink_header(30.0 * j, rotpa=30.0 * j + (40.0 if j == 1 else 0.3)) if j < 2 else fits.Header()
+                if j == 1:   # this one keeps its CTYPE but its ROTPA disagrees with the WCS
+                    header["CTYPE1"], header["CTYPE2"] = "RA---TAN", "DEC--TAN"
                 path = run / "stamps" / f"{name}_{100 + j}_{kind}.fits"
                 fits.PrimaryHDU(data.astype("float32"), header=header).writeto(path)
                 row[f"{kind}_file"] = f"stamps/{path.name}"
@@ -75,6 +86,29 @@ def test_compass_follows_the_wcs():
     assert m.pixel_scale_arcsec(tan_wcs()) == pytest.approx(0.2)
 
 
+def test_ctype_less_header_is_read_as_tan_and_checked_against_rotpa():
+    m = load_module()
+    h = fink_header(25.0, rotpa=25.5)
+    wcs, source = m.stamp_wcs(h)
+    assert source == "TAN assumed"
+    ref = tan_wcs(25.0)
+    for x, y in ((0, 0), (15, 15), (30, 7)):
+        a, b = wcs.pixel_to_world(x, y), ref.pixel_to_world(x, y)
+        assert a.separation(b).arcsec < 1e-6
+    assert m.pa_of_y_axis(wcs, (31, 31)) == pytest.approx(25.0, abs=1e-3)
+    assert m.dpa_from_rotpa(h, wcs, (31, 31)) == pytest.approx(-0.5, abs=1e-3)
+    assert m.orientation_ok(h, wcs, (31, 31), 3.0)
+    h["ROTPA"] = 300.0
+    assert not m.orientation_ok(h, wcs, (31, 31), 3.0)
+    assert m.stamp_wcs(fits.Header())[0] is None
+    no_scale = fits.Header()
+    no_scale.update(CRVAL1=150.0, CRVAL2=2.0, CRPIX1=1.0, CRPIX2=1.0)
+    assert m.stamp_wcs(no_scale) == (None, "none")
+    with_ctype = tan_wcs(0.0).to_header()
+    assert m.stamp_wcs(with_ctype)[1] == "header"
+    assert m.orientation_ok(with_ctype, m.stamp_wcs(with_ctype)[0], (31, 31), 3.0)   # no ROTPA: nothing to check
+
+
 def test_difference_scale_is_symmetric_and_handles_nan():
     m = load_module()
     d = np.array([[-5.0, 1.0], [np.nan, 2.0]])
@@ -92,11 +126,15 @@ def test_main_plots_checked_stamps_and_skips_failed_targets(tmp_path):
     m.main(["--stamps", str(run), "--out", str(out), "--code-sha", "test"])
     summary = json.loads((out / "summary.json").read_text())
     assert summary["n_targets"] == 6 and summary["n_stamps_checked"] == 18
-    assert summary["with_wcs"] == 12 and summary["stamp_shapes"] == ["31x31"]
+    assert summary["wcs_sources"] == {"TAN assumed": 6, "header": 6, "none": 6}
+    assert summary["compass_drawn"] == 2 and summary["stamp_shapes"] == ["31x31"]
+    assert summary["dpa_range_deg"][0] == pytest.approx(-40.0, abs=1e-3)
     assert (out / "alert_stamps.png").stat().st_size > 10_000 and (out / "alert_stamps.pdf").exists()
     props = list(csv.DictReader(open(out / "stamp_properties.csv")))
     assert len(props) == 18 and {p["name"] for p in props} == {f"G{g}-0{j}" for g in (1, 2) for j in (1, 2, 3)}
     assert [p["n_nonfinite"] for p in props if p["kind"] == "difference" and p["name"] == "G1-01"] == ["31"]
+    drawn = {p["name"] for p in props if p["kind"] == "template" and p["compass_drawn"] == "True"}
+    assert drawn == {"G1-01", "G2-01"}
     with pytest.raises(FileExistsError):
         m.main(["--stamps", str(run), "--out", str(out), "--code-sha", "test"])
 
