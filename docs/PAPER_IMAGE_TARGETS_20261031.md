@@ -88,7 +88,13 @@ figure (`scripts/plot_alert_stamps.py`, run `alert-stamps-figure-20261031-v2`, c
 Alert-count check against our delivered data: 27 of 30 targets have the same number of in-window alerts per band in
 Fink's API. G3-03, G4-01 and G4-02 each have one more i-band alert in the API. All three have alerts from two
 consecutive i-band exposures around midnight UTC on 2026-04-04/05 (midpointMjdTai 61134.99953 and 61135.00000);
-G3-03 has only the first. Not yet resolved; no plotted alert comes from those exposures.
+G3-03 has only the first. A read-only query of the analysis catalog on Arnor (2026-10-31) settles it: the later
+exposure (61135.000003) is in our data with 834 i-band alerts, including the API's alerts for G4-01, G4-02 and G5-05,
+while the earlier one (61134.99953, 2026-04-04 23:58:43 UTC) has no rows at all, and our data has no alerts between
+61134.95 and 61135.0. That whole exposure is absent from Fink's Data Transfer delivery although Fink's API serves it
+(diaSourceIds 170226393356435857, 170226393325502602, 170226393341755507). Our delivery validation still holds (every
+message in the delivered topics was received); the gap is between Fink's archive and its Data Transfer output.
+No plotted alert comes from that exposure.
 
 The |S/N| rule favours extreme residuals: 17 of the 30 chosen alerts are from the first five UTC days of the window,
 10 from 2026-02-25 alone.
