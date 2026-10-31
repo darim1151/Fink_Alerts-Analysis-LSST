@@ -3,7 +3,9 @@
 Thirty DIA objects for the paper's image figures: Rubin alert stamps (science, template, difference) and gri colour
 mosaics of the template stamps. Selected by `scripts/select_image_targets.py` at commit `42473a7de5ff0ebd09442ca6ca388dcc11b1949a` (run
 `image-targets-20261031-v1`), from the exported colour table `fink_dia_template_colours.csv` (sha256 `b9435f31c8049a87281ca9b91ca780a5ab0abeec4cc3801cb65cf7bce3328587`,
-159,777 rows; written by `scripts/export_colour_plot_table.py`). The table reproduces the paper's panel counts:
+159,777 rows; written by `scripts/export_colour_plot_table.py`). It holds the same rows as the paper run's export
+`notebooks-paper-20261015-v2/04_stellar_locus/fink_dia_template_colours.csv.gz` in a different row order (both files,
+line-sorted, hash to `f9628664ed60fb3702b1fd58770bfe052e1f42d274fef47f2d0c6c03362a51bb`); the selection does not depend on row order. The table reproduces the paper's panel counts:
 8,196 objects with usable g, r and i templates, 1,050 with u, g and r, and 661 with (g − i) > 2.
 
 ## Selection
