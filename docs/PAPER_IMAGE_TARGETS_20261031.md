@@ -71,3 +71,24 @@ the native LSST system without extinction correction; the G5 cut is not converte
 
 Outputs (not in Git): `image_targets.csv`, `image_targets_radec.csv` (name, RA, Dec), `summary.json` and `README.txt` in
 the project folder `fink-paper/image-targets-20261031-v1/`. `image_targets_radec.csv` sha256 `fd97cd2d8edf0f408e3f7a6d6b4e592cce538e62274ca5de3d27eeb1ab955628`.
+
+## Alert stamps
+
+Run `alert-stamps-20261031-v1` of `scripts/fetch_alert_stamps.py` (commit `84d9f7a`), made on 2026-10-31 from the owner's
+laptop because the cloud environment could not reach the Fink API. For each target the alert with the largest
+|psfFlux|/psfFluxErr between 2026-02-25 and 2026-07-13 (midpointMjdTai compared with UTC-date MJDs; no target has an
+alert within the 37 s TAI−UTC offset of either boundary) was taken, and its science, template and difference stamps
+were downloaded as FITS: 30 of 30 targets, 120 requests, no failures. Each stamp has the image (nJy), a variance
+extension `UNCERT` and a `PSFIMAGE`. All 121 files were re-checked against their recorded SHA-256 after transfer.
+
+Fink's stamp headers carry CRVAL/CRPIX/PC (0.2″ pixels) but no CTYPE. Read as a tangent projection, the position angle
+of the pixel +Y axis agrees with the header ROTPA within 2.2° for all 90 stamps, so the north/east arrows in the
+figure (`scripts/plot_alert_stamps.py`, run `alert-stamps-figure-20261031-v2`, commit `fe9c100`) are drawn from it.
+
+Alert-count check against our delivered data: 27 of 30 targets have the same number of in-window alerts per band in
+Fink's API. G3-03, G4-01 and G4-02 each have one more i-band alert in the API. All three have alerts from two
+consecutive i-band exposures around midnight UTC on 2026-04-04/05 (midpointMjdTai 61134.99953 and 61135.00000);
+G3-03 has only the first. Not yet resolved; no plotted alert comes from those exposures.
+
+The |S/N| rule favours extreme residuals: 17 of the 30 chosen alerts are from the first five UTC days of the window,
+10 from 2026-02-25 alone.
