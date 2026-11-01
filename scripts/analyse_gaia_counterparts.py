@@ -354,13 +354,18 @@ def plots(out, fm, comp_fm, label, radial, r_star):
 
     # 2. Expected share of chance matches among matched objects, against radius.
     fig, ax = plt.subplots(figsize=(4.6, 3.2))
+    ends = []
     for field in MAIN_FIELDS:
         f = fm[fm.field == field]
         if f.empty:
             continue
         ax.plot(f.radius_arcsec, 100 * f.chance_share_of_matched, color=field_colours[field], lw=1.5)
-        ax.text(f.radius_arcsec.iloc[-1] + 0.05, 100 * f.chance_share_of_matched.iloc[-1], field, fontsize=7,
-                va="center", color="#0b0b0b")
+        ends.append([np.log10(100 * f.chance_share_of_matched.iloc[-1]), field, f.radius_arcsec.iloc[-1]])
+    ends.sort()
+    for i in range(1, len(ends)):                      # keep the end labels at least 0.09 dex apart
+        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.09)
+    for y, field, x in ends:
+        ax.text(x + 0.05, 10 ** y, field, fontsize=7, va="center", color="#0b0b0b")
     ax.axvline(r_star, color="#888780", lw=0.8, ls=":")
     ax.set_yscale("log")
     ax.set_xlim(0, 5.6)
@@ -381,10 +386,12 @@ def plots(out, fm, comp_fm, label, radial, r_star):
         bottom = np.zeros(len(order))
         for cat in CATEGORIES:
             v = c[c.category == cat].set_index("i_bin").reindex(order).corrected_share.clip(lower=0).fillna(0).to_numpy()
+            if cat == NONE:      # negative corrected shares (only where real counterparts are absent) are shown as 0
+                v = np.clip(1.0 - bottom, 0.0, 1.0)
             ax.bar(x, v, bottom=bottom, color=colours[cat], width=0.8, edgecolor="white", linewidth=0.6, label=cat)
             bottom += v
         ax.set_xticks(x)
-        ax.set_xticklabels([b.replace(NO_I, "none").replace("i < ", "<").replace("i >= ", "≥") for b in order],
+        ax.set_xticklabels([b.replace(NO_I, "no i").replace("i < ", "<").replace("i >= ", "≥") for b in order],
                            rotation=60, fontsize=6.5)
         ax.set_title(field, fontsize=8)
         ax.set_xlabel("template i (mag)")
