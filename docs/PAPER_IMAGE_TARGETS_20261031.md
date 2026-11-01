@@ -93,8 +93,11 @@ exposure (61135.000003) is in our data with 834 i-band alerts, including the API
 while the earlier one (61134.99953, 2026-04-04 23:58:43 UTC) has no rows at all, and our data has no alerts between
 61134.95 and 61135.0. That whole exposure is absent from Fink's Data Transfer delivery although Fink's API serves it
 (diaSourceIds 170226393356435857, 170226393325502602, 170226393341755507). Our delivery validation still holds (every
-message in the delivered topics was received); the gap is between Fink's archive and its Data Transfer output.
-No plotted alert comes from that exposure.
+message in the delivered topics was received). Fink's own nightly statistics (`api/v1/statistics`, checked 2026-11-01
+with `scripts/compare_fink_statistics.py`, run `fink-statistics-check-20261101-v1`) agree with our delivery exactly
+over the window, 7,101,947 alerts on both sides, and they do not count this exposure either (Fink lists no night
+2026-04-04). So the exposure is missing from the data behind Fink's statistics and Data Transfer, not lost in our
+transfer; only the database behind Fink's API has it. No plotted alert comes from that exposure.
 
 The |S/N| rule favours extreme residuals: 17 of the 30 chosen alerts are from the first five UTC days of the window,
 10 from 2026-02-25 alone.

@@ -233,8 +233,9 @@ def object_strata(template, science):
     if not t.oid.is_unique or set(t.oid) != set(s.oid):
         raise ValueError("the template and science tables describe different objects")
     o = t.merge(s, on="oid")
-    if not (o.field.fillna("") == o.field_science.fillna("")).all():
-        raise ValueError("field differs between the two tables")
+    # The template table's field (most frequent programme group of the object's alerts, ties alphabetical) is used.
+    # The science table can differ for objects with alerts in several groups; the number is recorded, not hidden.
+    o["field_differs_between_tables"] = o.field.fillna("") != o.field_science.fillna("")
     if not (o.cats_class_latest == o.cats).all():
         raise ValueError("CATS class differs between the two tables")
     mag = np.where(o.ok_i.fillna(False).to_numpy(dtype=bool), o.mag_i.to_numpy(dtype=float), np.nan)
@@ -491,6 +492,8 @@ def main(argv=None):
                           "objects_sha256": objects_sha, "science": Path(a.science).name,
                           "science_sha256": sha256_file(a.science)},
                "n_objects": int(len(near_main)), "n_control": int(len(near_ctrl)),
+               "field_rule": "template table: most frequent programme group of the object's alerts, ties alphabetical",
+               "n_field_differs_between_tables": int(objects.field_differs_between_tables.sum()),
                "n_main_pairs": int(len(m_main)), "n_control_pairs": int(len(m_ctrl)),
                "n_matched_r_star": int((near_main.sep <= a.r_star).sum()),
                "n_multiple_within_r_star": int((near_main.n_within_r_star > 1).sum()),

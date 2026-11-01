@@ -221,7 +221,7 @@ def test_simulated_sky_recovers_the_truth(tmp_path):
     assert fink["not within 5 arcsec of our position"] == sim["n_ghost"]
     assert fink["our nearest"] + fink["within r_star, not our nearest"] >= len(stars) - 5
     assert fink["within 5 arcsec, beyond r_star"] + fink["our nearest, beyond r_star"] == sim["n_far"]
-    assert summary["r_star_arcsec"] == 1.0
+    assert summary["r_star_arcsec"] == 1.0 and summary["n_field_differs_between_tables"] == 0
     curve = summary["real_counterpart_fraction_by_radius_all"]           # true counterparts all lie within 0.06"
     assert len(curve) == 40 and all(abs(v - 0.5) < 0.03 for v in curve.values())
     assert summary["fink_gaia"]["unparsed_names"] == 0 and summary["fink_gaia"]["n_parallax_difference_gt_0.001"] == 0
