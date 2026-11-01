@@ -252,3 +252,32 @@ def test_inputs_are_checked(tmp_path):
     (run / "uploaded.parquet").write_bytes((run / "uploaded.parquet").read_bytes() + b"x")
     with pytest.raises(ValueError, match="checksum mismatch"):
         m.main(sim["args"] + ["--out", str(tmp_path / "a")])
+
+
+def test_label_strata_take_chance_rates_from_their_fields():
+    m = load_module()
+    rng = np.random.default_rng(0)
+
+    def table(oids, cats):
+        return pd.DataFrame({"oid": oids, "category_r_star": cats})
+
+    # objects: label X all in field A (30 stars, 70 none); label Y half in A, half in B (50 stars, 50 none)
+    obj = pd.DataFrame({"oid": np.arange(200), "field": ["A"] * 150 + ["B"] * 50, "label": ["X"] * 100 + ["Y"] * 100})
+    main = table(obj.oid, [m.STAR] * 30 + [m.NONE] * 70 + [m.STAR] * 25 + [m.NONE] * 25 + [m.STAR] * 25 + [m.NONE] * 25)
+    # shifted positions: field A 10% stars (all of them from label Y objects), field B 50% stars
+    ctrl_oids = np.arange(200)
+    ctrl_cats = np.array([m.NONE] * 200, dtype=object)
+    ctrl_cats[100:115] = m.STAR                        # 15 of the 150 field-A positions
+    ctrl_cats[150:175] = m.STAR                        # 25 of the 50 field-B positions
+    ctrl = table(ctrl_oids, ctrl_cats)
+    by_field = m.composition(main, ctrl, obj, ["label"], rng, n_mc=200, chance_by="field").set_index(["label", "category"])
+    own = m.composition(main, ctrl, obj, ["label"], rng, n_mc=200).set_index(["label", "category"])
+    assert by_field.loc[("X", m.STAR), "corrected_share"] == pytest.approx(0.3 - 0.7 * 0.1 / 0.9)
+    assert by_field.loc[("X", m.NONE), "corrected_share"] == pytest.approx(0.7 / 0.9)
+    assert own.loc[("X", m.STAR), "corrected_share"] == pytest.approx(0.3)          # its own positions saw no star
+    q_star, q_none = 0.5 * 0.1 + 0.5 * 0.5, 0.5 * 0.9 + 0.5 * 0.5
+    assert by_field.loc[("Y", m.STAR), "corrected_share"] == pytest.approx(0.5 - 0.5 * q_star / q_none)
+    assert by_field.loc[("X", m.STAR), "n_control"] == 150 and by_field.loc[("Y", m.STAR), "n_control"] == 200
+    assert set(by_field.chance_from) == {"all shifted positions in the same field"}
+    assert by_field.loc[("X", m.STAR), "corrected_lo"] < by_field.loc[("X", m.STAR), "corrected_share"] \
+        < by_field.loc[("X", m.STAR), "corrected_hi"]

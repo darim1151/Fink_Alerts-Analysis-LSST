@@ -181,46 +181,79 @@ def false_match_table(main_near, ctrl_near, objects, by="field", radii=RADII):
     return pd.DataFrame(rows)
 
 
-def corrected_shares(n, m, rng, n_mc=4000):
-    """(observed, corrected, lo, hi) per category for counts n (objects) and m (their shifted positions); NONE last."""
-    n, m = np.asarray(n, float), np.asarray(m, float)
+def _correct(s, q):
+    out = s - s[..., -1:] * q / q[..., -1:]
+    out[..., -1] = s[..., -1] / q[..., -1]
+    return out
 
-    def point(s, q):
-        out = s - s[..., -1:] * q / q[..., -1:]
-        out[..., -1] = s[..., -1] / q[..., -1]
-        return out
 
-    obs = n / n.sum() if n.sum() else np.full(len(n), np.nan)
-    if n.sum() == 0 or m.sum() == 0:
-        nan = np.full(len(n), np.nan)
-        return obs, nan, nan, nan
-    est = point(obs, m / m.sum()) if m[-1] > 0 else np.full(len(n), np.nan)
-    draws = point(rng.dirichlet(n + 0.5, size=n_mc), rng.dirichlet(m + 0.5, size=n_mc))
-    lo, hi = np.percentile(draws, [2.5, 97.5], axis=0)
+def corrected_shares(n, m, rng, n_mc=4000, q_point=None, q_draws=None):
+    """(observed, corrected, lo, hi) per category for counts n (objects) and m (their shifted positions); NONE last.
+    With q_point and q_draws the shares at shifted positions are given directly (point value and n_mc draws)."""
+    n = np.asarray(n, float)
+    nan = np.full(len(n), np.nan)
+    if n.sum() == 0:
+        return nan, nan, nan, nan
+    obs = n / n.sum()
+    s_draws = rng.dirichlet(n + 0.5, size=n_mc)
+    if q_point is None:
+        m = np.asarray(m, float)
+        if m.sum() == 0:
+            return obs, nan, nan, nan
+        q_point = m / m.sum()
+        q_draws = rng.dirichlet(m + 0.5, size=n_mc)
+    est = _correct(obs, q_point) if q_point[-1] > 0 else nan
+    lo, hi = np.percentile(_correct(s_draws, q_draws), [2.5, 97.5], axis=0)
     return obs, est, lo, hi
 
 
-def composition(main_near, ctrl_near, objects, by, rng, column="category_r_star", n_mc=4000, min_objects=1):
-    """Long table: per stratum (columns `by`) and category, counts, observed and corrected shares with 95% intervals."""
+def composition(main_near, ctrl_near, objects, by, rng, column="category_r_star", n_mc=4000, min_objects=1,
+                chance_by=None):
+    """Long table: per stratum (columns `by`) and category, counts, observed and corrected shares with 95% intervals.
+
+    The chance shares come from the shifted positions of the stratum's own objects, or, with chance_by (e.g. "field"),
+    from all shifted positions in each value of chance_by, weighted by the stratum's objects. The second is for
+    strata defined by labels: chance coincidences depend on where an object is, not on its label, and the per-field
+    control samples are much larger than a small labelled group's own."""
     by = list(by)
-    mn = main_near[["oid", column]].merge(objects[["oid", *by]], on="oid")
-    cn = ctrl_near[["oid", column]].merge(objects[["oid", *by]], on="oid")
+    extra = [chance_by] if chance_by and chance_by not in by else []
+    mn = main_near[["oid", column]].merge(objects[["oid", *by, *extra]], on="oid")
+    cn = ctrl_near[["oid", column]].merge(objects[["oid", *by, *extra]], on="oid")
+    if chance_by:
+        mn["_chance"], cn["_chance"] = mn[chance_by], cn[chance_by]
     a = mn.groupby(by + [column], dropna=False).size().unstack(column, fill_value=0).reindex(columns=CATEGORIES,
                                                                                              fill_value=0)
     c = cn.groupby(by + [column], dropna=False).size().unstack(column, fill_value=0).reindex(columns=CATEGORIES,
                                                                                              fill_value=0)
     c = c.reindex(a.index, fill_value=0)
+    if chance_by:
+        cf = cn.groupby(["_chance", column]).size().unstack(column, fill_value=0).reindex(columns=CATEGORIES,
+                                                                                          fill_value=0)
+        weights = mn.groupby(by + ["_chance"]).size()
     rows = []
     for key in a.index:
         n, m = a.loc[key].to_numpy(), c.loc[key].to_numpy()
         if n.sum() < min_objects:
             continue
-        obs, est, lo, hi = corrected_shares(n, m, rng, n_mc)
+        if chance_by:
+            w = weights.loc[key]                         # objects of this stratum per value of chance_by
+            w = w / w.sum()
+            counts = cf.reindex(w.index, fill_value=0).to_numpy(dtype=float)
+            q_point = (w.to_numpy()[:, None] * counts / np.maximum(counts.sum(1, keepdims=True), 1)).sum(0)
+            if (counts.sum(1) == 0).any():
+                q_point = np.full(len(CATEGORIES), np.nan)
+            q_draws = sum(wf * rng.dirichlet(cnt + 0.5, size=n_mc) for wf, cnt in zip(w.to_numpy(), counts))
+            obs, est, lo, hi = corrected_shares(n, None, rng, n_mc, q_point=q_point, q_draws=q_draws)
+            n_ctrl_cat, source = counts.sum(0), f"all shifted positions in the same {chance_by}"
+        else:
+            obs, est, lo, hi = corrected_shares(n, m, rng, n_mc)
+            n_ctrl_cat, source = m, "shifted positions of the same objects"
         key = key if isinstance(key, tuple) else (key,)
         for i, cat in enumerate(CATEGORIES):
-            rows.append({**dict(zip(by, key)), "category": cat, "n_objects": int(n.sum()), "n_control": int(m.sum()),
-                         "n": int(n[i]), "n_control_in_category": int(m[i]), "observed_share": obs[i],
-                         "corrected_share": est[i], "corrected_lo": lo[i], "corrected_hi": hi[i]})
+            rows.append({**dict(zip(by, key)), "category": cat, "n_objects": int(n.sum()),
+                         "n_control": int(np.sum(n_ctrl_cat)), "n": int(n[i]), "n_control_in_category": int(n_ctrl_cat[i]),
+                         "observed_share": obs[i], "corrected_share": est[i], "corrected_lo": lo[i],
+                         "corrected_hi": hi[i], "chance_from": source})
     return pd.DataFrame(rows)
 
 
@@ -440,13 +473,14 @@ def main(argv=None):
     comp_all = composition(near_main, near_ctrl, objects.assign(all="all"), ["all"], rng, n_mc=a.n_mc)
     comp_b = composition(near_main, near_ctrl, objects, ["abs_b_bin"], rng, n_mc=a.n_mc)
     comp_fm = composition(near_main, near_ctrl, objects, ["field", "i_bin"], rng, n_mc=a.n_mc)
-    label = composition(near_main, near_ctrl, objects, ["cats_class_latest", "field", "i_bin"], rng, n_mc=a.n_mc)
-    label_cf = composition(near_main, near_ctrl, objects, ["cats_class_latest", "field"], rng, n_mc=a.n_mc)
-    label_c = composition(near_main, near_ctrl, objects, ["cats_class_latest"], rng, n_mc=a.n_mc)
-    label_c_noruwe = composition(near_main, near_ctrl, objects, ["cats_class_latest"], rng,
-                                 column="category_no_ruwe_cut_r_star", n_mc=a.n_mc)
-    calib = composition(near_main, near_ctrl, objects[objects.external_label != ""], ["external_label"], rng,
-                        n_mc=a.n_mc)
+    by_field = dict(rng=rng, n_mc=a.n_mc, chance_by="field")
+    label = composition(near_main, near_ctrl, objects, ["cats_class_latest", "field", "i_bin"], **by_field)
+    label_cf = composition(near_main, near_ctrl, objects, ["cats_class_latest", "field"], **by_field)
+    label_c = composition(near_main, near_ctrl, objects, ["cats_class_latest"], **by_field)
+    label_c_own = composition(near_main, near_ctrl, objects, ["cats_class_latest"], rng, n_mc=a.n_mc)
+    label_c_noruwe = composition(near_main, near_ctrl, objects, ["cats_class_latest"],
+                                 column="category_no_ruwe_cut_r_star", **by_field)
+    calib = composition(near_main, near_ctrl, objects[objects.external_label != ""], ["external_label"], **by_field)
     fink_tab, fink_pairs, fink_stats = fink_gaia_check(objects, m_main, near_main, a.r_star)
 
     edges, dens_main = radial_density(m_main, up_main, objects)
@@ -466,6 +500,7 @@ def main(argv=None):
               "composition_by_field.csv": comp_field, "composition_by_abs_b.csv": comp_b,
               "composition_by_field_i_mag.csv": comp_fm, "label_check_by_cats_field_i_mag.csv": label,
               "label_check_by_cats_field.csv": label_cf, "label_check_by_cats.csv": label_c,
+              "label_check_by_cats_own_control.csv": label_c_own,
               "label_check_by_cats_no_ruwe_cut.csv": label_c_noruwe, "calibration_external_labels.csv": calib,
               "fink_gaia_check.csv": fink_tab, "radial_density.csv": radial}
     for name, df in tables.items():
@@ -508,6 +543,7 @@ def main(argv=None):
                "composition_all": {c: share(comp_all, c) for c in CATEGORIES},
                "sn_like_gaia_star": share(label_c, STAR, cats_class_latest=11),
                "sn_like_gaia_star_no_ruwe_cut": share(label_c_noruwe, STAR, cats_class_latest=11),
+               "sn_like_gaia_star_own_control": share(label_c_own, STAR, cats_class_latest=11),
                "fink_gaia": fink_stats,
                "finished_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     summary["files"] = {f.name: sha256_file(f) for f in sorted(out.iterdir()) if f.is_file()}
