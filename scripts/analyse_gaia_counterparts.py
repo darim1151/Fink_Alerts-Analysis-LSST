@@ -362,8 +362,8 @@ def plots(out, fm, comp_fm, label, radial, r_star):
         ax.plot(f.radius_arcsec, 100 * f.chance_share_of_matched, color=field_colours[field], lw=1.5)
         ends.append([np.log10(100 * f.chance_share_of_matched.iloc[-1]), field, f.radius_arcsec.iloc[-1]])
     ends.sort()
-    for i in range(1, len(ends)):                      # keep the end labels at least 0.09 dex apart
-        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.09)
+    for i in range(1, len(ends)):                      # keep the end labels at least 0.15 dex apart
+        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 0.15)
     for y, field, x in ends:
         ax.text(x + 0.05, 10 ** y, field, fontsize=7, va="center", color="#0b0b0b")
     ax.axvline(r_star, color="#888780", lw=0.8, ls=":")
