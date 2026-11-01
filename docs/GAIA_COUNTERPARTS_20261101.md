@@ -34,7 +34,9 @@ environment and the ESA Gaia archive and NOIRLab Data Lab TAP rejected large upl
   95% intervals from Dirichlet draws (Jeffreys prior).
 - Radius: the chance-corrected share of objects with a real counterpart is 54.8% at 0.1″, 71.1% at 0.3″, 72.2% at
   0.5″ and peaks at 0.6″. At 0.5″ the shifted positions hit a Gaia source 0.51% of the time (bulge 1.35%), so 0.20%
-  of matches are expected to be chance ones (bulge 0.10%). The 1″ run changes every headline by 0.2 points or less (Gaia star 56.5% → 56.3%).
+  of matches are expected to be chance ones with one pooled rate. Field by field it is at most 0.13% (bulge 0.10%),
+  about 2,300 matches or 0.09% in total; the pooled figure is an upper bound because objects without a counterpart
+  sit mostly in sparse fields. The 1″ run changes every headline by 0.2 points or less (Gaia star 56.5% → 56.3%).
 - Around the real objects Gaia sources are depleted out to at least 4″ compared with the shifted positions
   (`fig_gaia_radial_density`), so the shifted positions overestimate chance matches; the corrections are conservative.
 
@@ -53,7 +55,8 @@ environment and the ESA Gaia archive and NOIRLab Data Lab TAP rejected large upl
 ## Results
 
 - 72.2% of DIA objects have a real Gaia counterpart within 0.5″. Corrected composition: Gaia star 56.5%, QSO-like
-  1.1%, galaxy-like 0.13%, unclassified 14.5%, none 27.8%. Gaia star / none by field: Low-dust WFD 45.9 / 37.6,
+  1.1%, galaxy-like 0.13%, unclassified 14.5%, none 27.8% (pooled chance rate; adding up the fields gives none 27.7%, i.e. 72.3% with a
+  real counterpart). Gaia star / none by field: Low-dust WFD 45.9 / 37.6,
   bulge 77.8 / 7.0, plane 64.7 / 17.8, DDF 28.1 / 63.6, M49 15.3 / 79.5. Gaia's limit (G ≈ 21) means no counterpart
   is expected at template i > 20.5 whatever the object is.
 - At |b| ≥ 30° and template i < 20 (259,708 objects), 83.6% are Gaia stars and 5.0% QSO-like. Stripe 82 variables at
