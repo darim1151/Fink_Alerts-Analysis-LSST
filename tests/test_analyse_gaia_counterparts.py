@@ -141,7 +141,7 @@ def simulated_sky(tmp_path, n_per_field=2500, seed=11):
     science.to_parquet(sci_path, index=False)
     return {"truth": truth, "field": field, "oid": oid, "n_far": len(far), "n_ghost": len(ghost),
             "args": ["--main", str(tmp_path / "main"), "--control", str(tmp_path / "ctrl"), "--objects", str(obj_path),
-                     "--science", str(sci_path), "--code-sha", "test", "--n-mc", "400"]}
+                     "--science", str(sci_path), "--code-sha", "test", "--n-mc", "400", "--r-star", "1.0"]}
 
 
 def test_separations_and_proper_motion():
@@ -221,6 +221,9 @@ def test_simulated_sky_recovers_the_truth(tmp_path):
     assert fink["not within 5 arcsec of our position"] == sim["n_ghost"]
     assert fink["our nearest"] + fink["within r_star, not our nearest"] >= len(stars) - 5
     assert fink["within 5 arcsec, beyond r_star"] + fink["our nearest, beyond r_star"] == sim["n_far"]
+    assert summary["r_star_arcsec"] == 1.0
+    curve = summary["real_counterpart_fraction_by_radius_all"]           # true counterparts all lie within 0.06"
+    assert len(curve) == 40 and all(abs(v - 0.5) < 0.03 for v in curve.values())
     assert summary["fink_gaia"]["unparsed_names"] == 0 and summary["fink_gaia"]["n_parallax_difference_gt_0.001"] == 0
     for name in ("fig_gaia_radial_density.png", "fig_gaia_false_match_vs_radius.png",
                  "fig_gaia_composition_by_magnitude.png", "fig_label_check_sn_like.png"):

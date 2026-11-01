@@ -402,7 +402,7 @@ def main(argv=None):
     p.add_argument("--objects", required=True, help="dia_object_template_photometry.parquet")
     p.add_argument("--science", required=True, help="dia_object_science_table.parquet")
     p.add_argument("--out", required=True, help="new output directory (must not exist)")
-    p.add_argument("--r-star", type=float, default=1.0, help="match radius in arcsec")
+    p.add_argument("--r-star", type=float, default=0.5, help="match radius in arcsec")
     p.add_argument("--seed", type=int, default=20261101)
     p.add_argument("--n-mc", type=int, default=4000)
     p.add_argument("--code-sha", required=True)
@@ -498,6 +498,10 @@ def main(argv=None):
                    near_main[near_main.sep <= a.r_star].source_id.duplicated(keep=False).sum()),
                "false_match_all_r_star": fm[(fm.field == "all") & np.isclose(fm.radius_arcsec, a.r_star)]
                .drop(columns="field").to_dict("records"),
+               "real_counterpart_fraction_by_radius_all": {f"{r:.1f}": round(float(v), 6) for r, v in zip(
+                   fm[fm.field == "all"].radius_arcsec, fm[fm.field == "all"].f_with_real_counterpart)},
+               "radius_of_max_real_counterpart_fraction": float(fm[fm.field == "all"].set_index("radius_arcsec")
+                                                                 .f_with_real_counterpart.idxmax()),
                "composition_all": {c: share(comp_all, c) for c in CATEGORIES},
                "sn_like_gaia_star": share(label_c, STAR, cats_class_latest=11),
                "sn_like_gaia_star_no_ruwe_cut": share(label_c_noruwe, STAR, cats_class_latest=11),
