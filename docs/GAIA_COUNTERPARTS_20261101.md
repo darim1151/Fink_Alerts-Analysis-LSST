@@ -72,13 +72,21 @@ environment and the ESA Gaia archive and NOIRLab Data Lab TAP rejected large upl
 - TNS supernova labels: 167 of 231 are confirmed by Fink's API. 60 of the 64 unconfirmed sit in groups of 2-6
   same-type objects up to 11.4′ apart; 25 of them are Gaia stars and 7 QSO-like, while no confirmed one is either.
   K1/K2 use these labels as truth and should be redone with the confirmed 167.
+- Where those labels come from (`tns-label-provenance-20261102-v1`, `scripts/tns_label_provenance.py` @ `89e6625`, one
+  read-only query of the 8,019 delivered alerts of the 231 objects on Arnor): the science suite's rule reproduces all
+  231 labels. All 64 unconfirmed labels come only from the packet field `tns_type_recomputed`; none of their delivered
+  alerts has a TNS name, `xm.tns_type` or TNS redshift, while all 167 confirmed objects have a TNS name. 47 of the 64
+  have a diaObjectId within 1,000 of the nearest confirmed supernova of the same type (2 of the 167 confirmed do) and
+  42 had their first alert in the same exposure as it, consistent with the type being copied onto other objects
+  found in the same image. `tns_type_recomputed` is not in Fink's public API schema. Truth for K1/K2: objects whose
+  delivered packets carry a TNS name (exactly the 167); SN 2026oxx has SN Ia in one field and SN II in the other.
 - Fink's nightly statistics agree with our delivery exactly: 7,101,947 alerts over the window on both sides; nightly
   differences are only alerts Fink files under a later night. The 4 April exposure that Fink's API serves is absent
   from both, so it is missing on Fink's side.
 
 ## Open
 
-- Whether the 64 unconfirmed TNS labels come from the delivered packets or from the notebook (read-only Arnor query).
+- Redo K1/K2 with the 167 TNS-named objects as truth.
 - Legacy Surveys DR10 morphology and WISE colours: the Data Lab query manager answers small inline-VALUES joins
   anonymously, but closed the connection for 1,000-object batches; needs a different batching or a Data Lab account.
 - COSMOS2020 / Chandra COSMOS and Euclid Q1 through IRSA (same upload script with another table).
