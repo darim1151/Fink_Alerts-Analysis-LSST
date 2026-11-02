@@ -75,9 +75,10 @@ def test_summarise_traces_each_label(tmp_path):
     m = load_module()
     cat = write_fixture(tmp_path)
     (tmp_path / "x.json").write_text(json.dumps(m.extract(cat, ["1", "2", "3"])))
-    pd.DataFrame({"dia_object_id": [1, 2, 3], "tns_type": ["SN Ia", "SN II", "SN II"], "confirmed_by_api": [True, False, False],
-                  "api_alerts_in_window": [3, 2, 5], "group_size": [1, 2, 2], "gaia_category": ["No Gaia source"] * 3}
-                 ).to_csv(tmp_path / "labels.csv", index=False)
+    pd.DataFrame({"dia_object_id": [1, 2, 3, 4], "tns_type": ["SN Ia", "SN II", "SN II", "SN II"],
+                  "confirmed_by_api": [True, False, False, True], "ra_deg": [10.0, 10.0, 10.1, 10.0],
+                  "dec_deg": [0.0, 0.05, 0.0, 0.0], "api_alerts_in_window": [3, 2, 5, 0], "group_size": [1, 2, 2, 2],
+                  "gaia_category": ["No Gaia source"] * 4}).to_csv(tmp_path / "labels.csv", index=False)
     s = m.summarise(tmp_path / "x.json", tmp_path / "labels.csv", tmp_path / "out")
     per = pd.read_csv(tmp_path / "out" / "per_object.csv").set_index("dia_object_id")
     # object 1: last alert (b.parquet) has no label, so the last non-null is the first alert's recomputed SN Ia
@@ -85,8 +86,14 @@ def test_summarise_traces_each_label(tmp_path):
     assert per.loc[1, "n_with_tns_name"] == 1 and per.loc[1, "n_recomputed_unknown"] == 1
     assert per.loc[2, "derived_from"] == "xm.tns_type" and per.loc[2, "n_with_tns_name"] == 0
     assert per.loc[3, "derived_tns_type"] == "SN II" and per.loc[3, "derived_from"] == "tns_type_recomputed"
-    assert s["derived_equals_notebook"] == 3
+    assert s["derived_equals_notebook"] == 3                      # object 4 has no delivered alerts
     assert s["unconfirmed"]["label_from"] == {"xm.tns_type": 1, "tns_type_recomputed": 1}
-    assert s["confirmed"]["delivered_alerts_equal_api_in_window"] == 1
+    assert s["confirmed"]["delivered_alerts_equal_api_in_window"] == 2
+    # objects 2 and 3 (SN II, unconfirmed) link to object 4, the confirmed SN II, at 3' and 6'
+    assert per.loc[2, "nearest_confirmed_same_type"] == 4 and per.loc[2, "sep_arcmin"] == pytest.approx(3.0, abs=1e-3)
+    assert per.loc[3, "sep_arcmin"] == pytest.approx(6.0, abs=1e-3) and per.loc[3, "id_difference"] == 1
+    assert pd.isna(per.loc[1, "nearest_confirmed_same_type"])
+    assert s["unconfirmed"]["within_12_arcmin_of_confirmed_same_type"] == 2 and s["unconfirmed"]["id_within_1000_of_that_object"] == 2
+    assert s["unconfirmed"]["first_alert_same_exposure_as_that_object"] == 0
     with pytest.raises(FileExistsError):
         m.summarise(tmp_path / "x.json", tmp_path / "labels.csv", tmp_path / "out")

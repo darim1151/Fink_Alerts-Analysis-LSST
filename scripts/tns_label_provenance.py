@@ -145,13 +145,45 @@ def summarise_objects(rows, labels):
     return out
 
 
-def summarise(extract_json, labels_csv, out):
+def link_to_confirmed(per, rows):
+    """For each object, the nearest API-confirmed object with the same notebook TNS type (excluding itself): its id,
+    the separation, the difference of the two diaObjectIds, and whether both first alerts are in one exposure
+    (equal midpointMjdTai). Rubin IDs of objects first detected in one image are close in value."""
+    import numpy as np
+    first = {}
+    for r in sorted(rows, key=lambda r: (r["mjd"], r["sid"])):
+        first.setdefault(int(r["oid"]), r["mjd"])
+    conf = per[per.confirmed_by_api]
+    out = []
+    for r in per.itertuples():
+        cc = conf[(conf.notebook_tns_type == r.notebook_tns_type) & (conf.dia_object_id != r.dia_object_id)]
+        if cc.empty:
+            out.append((None, None, None, None))
+            continue
+        d1, d2 = np.radians(r.dec_deg), np.radians(cc.dec_deg.to_numpy())
+        cosd = np.sin(d1) * np.sin(d2) + np.cos(d1) * np.cos(d2) * np.cos(np.radians(r.ra_deg - cc.ra_deg.to_numpy()))
+        sep = np.degrees(np.arccos(np.clip(cosd, -1, 1))) * 60.0
+        k = int(np.argmin(sep))
+        c = int(cc.dia_object_id.iloc[k])
+        same = r.dia_object_id in first and c in first and abs(first[r.dia_object_id] - first[c]) < 1e-6
+        out.append((c, round(float(sep[k]), 4), abs(int(r.dia_object_id) - c), bool(same)))
+    per = per.copy()
+    per["nearest_confirmed_same_type"], per["sep_arcmin"], per["id_difference"], per["first_alert_same_exposure"] = zip(*out)
+    return per
+
+
+def summarise(extract_json, labels_csv, out, near_arcmin=12.0, id_block=1000):
     import pandas as pd
     data = json.loads(Path(extract_json).read_text())
     lab = pd.read_csv(labels_csv)
     labels = {int(r.dia_object_id): (r.tns_type, bool(r.confirmed_by_api)) for r in lab.itertuples()}
     per = pd.DataFrame(summarise_objects(data["rows"], labels))
-    per = per.merge(lab[["dia_object_id", "api_alerts_in_window", "group_size", "gaia_category"]], on="dia_object_id")
+    per = per.merge(lab[["dia_object_id", "ra_deg", "dec_deg", "api_alerts_in_window", "group_size", "gaia_category"]],
+                    on="dia_object_id")
+    per = link_to_confirmed(per, data["rows"])
+    has_xm = per.xm_tns_types.fillna("") != ""
+    per["notebook_type_conflicts_xm"] = has_xm & ~per.apply(
+        lambda r: r.notebook_tns_type in str(r.xm_tns_types).split(";"), axis=1)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=False)
     per.to_csv(out / "per_object.csv", index=False)
@@ -166,7 +198,11 @@ def summarise(extract_json, labels_csv, out):
                 "with_tns_name_in_delivery": int((g.n_with_tns_name > 0).sum()),
                 "with_xm_tns_type_in_delivery": int((g.n_with_xm_tns_type > 0).sum()),
                 "with_recomputed_in_delivery": int((g.n_with_recomputed > 0).sum()),
-                "delivered_alerts_equal_api_in_window": int((g.n_alerts == g.api_alerts_in_window).sum())}
+                "delivered_alerts_equal_api_in_window": int((g.n_alerts == g.api_alerts_in_window).sum()),
+                f"within_{near_arcmin:g}_arcmin_of_confirmed_same_type": int((g.sep_arcmin <= near_arcmin).sum()),
+                f"id_within_{id_block}_of_that_object": int((g.id_difference < id_block).sum()),
+                "first_alert_same_exposure_as_that_object": int(g.first_alert_same_exposure.eq(True).sum()),
+                "notebook_type_conflicts_xm_tns_type": int(g.notebook_type_conflicts_xm.sum())}
     (out / "summary.json").write_text(json.dumps(s, indent=1, default=str) + "\n")
     return s
 
