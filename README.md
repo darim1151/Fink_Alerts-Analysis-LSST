@@ -1,8 +1,21 @@
-# fink_lsst_analysis
+# Fink_Alerts-Analysis-LSST
 
-Local-first research code for exploring public Fink Broker access patterns for LSST/Rubin alert analysis.
+Acquisition, validation and analysis code for LSST alerts delivered by the [Fink](https://fink-broker.org) broker. The Python package is `fink_lsst` (distribution `fink-lsst-analysis`).
 
-This repository is intentionally small at this stage. It is an architecture, access reconnaissance, and smoke-testing foundation, not a production science pipeline. The code uses public/no-login Fink REST API access where possible and now includes a hardened local ingestion path for manually delivered Fink Data Transfer smoke files. It still avoids Livestream, Spark job execution, privileged secrets in-repo, paid services, cutouts/FITS/images, and unconfirmed large downloads.
+Alerts are pulled in bulk through Fink's Data Transfer service. A delivery is accepted only when three counts agree: messages in the broker's topic, messages committed during transfer, and rows readable on disk. Accepted deliveries are combined into a named analysis cohort, pinned by acquisition and characterization hashes, and analyses read that cohort without modifying it.
+
+**Status, November 2026**
+
+- Five acquisitions cover 25 February to 13 July 2026: four monthly windows and a final 19-day window. Their records are in [`configs/acquisitions/`](configs/acquisitions). Validation of the last window and the qualification of the combined cohort are in [pull request #1](https://github.com/darim1151/Fink_Alerts-Analysis-LSST/pull/1), not yet merged into `main`.
+- The combined cohort holds 7,101,947 alerts (6,311,364 difference-image sources and 790,583 solar-system sources) in 71,042 Parquet files. Only 68 of the 139 requested days contain delivered rows. An empty day means nothing was delivered, not that Rubin observed nothing.
+- The cohort passed a science-readiness check with documented limitations. It is a Light Static packet, so it has no full source histories, forced photometry or solar-system orbits, and a validated Fink delivery does not establish completeness relative to Rubin.
+- Tests run offline: `python -m pytest`.
+
+**Where things are.** `src/fink_lsst/` is the library (acquisition, bulk transfer, validation, characterization), `scripts/` the command-line entry points, `configs/` run manifests, acquisition records and delivery evidence (no data, no credentials), and `docs/` one note per checkpoint; start with [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) and [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md). Raw deliveries and analytical catalogs stay outside Git.
+
+The sections below are the original checkpoint notes, kept as written. Some describe earlier stages; for example, live submission has since been enabled behind an explicit opt-in.
+
+This project is independent of [ANTARES_Analysis](https://github.com/darim1151/ANTARES_Analysis), which reads a different broker with a different selection rule. Parts of the code and documentation were written with AI coding agents: commits authored or co-authored by `Claude`, and work on the `claude/*` and `codex/*` branches.
 
 ## Scope
 
@@ -33,7 +46,7 @@ The tests do not require internet access.
 ## Common Workflow
 
 ```bash
-cd "/Users/darim_shamsi/Documents/Fink Analysis"
+cd Fink_Alerts-Analysis-LSST
 source .venv/bin/activate
 python -m pytest
 python scripts/probe_fink_lsst_api.py
@@ -178,7 +191,7 @@ This proves smoke ingestion and validation, not full-night completeness.
 ## Data Transfer Smoke Workflow
 
 ```bash
-cd "/Users/darim_shamsi/Documents/Fink Analysis"
+cd Fink_Alerts-Analysis-LSST
 source .venv/bin/activate
 
 python -m pytest
