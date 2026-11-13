@@ -6,6 +6,7 @@ figure, panel letters (a), (b), ... inside the axes, legends inside or directly 
 printed under each figure. Every count quoted in a caption is computed from the data when the figure is drawn.
 
 Figures (names follow the paper notes):
+  S1  all alerts on the sky, equatorial Aitoff projection (DIA and SSO)
   M1  schematic of the three alert fluxes (templateFlux, scienceFlux, psfFlux)
   P1  alerts per band, alerts per object, difference-flux and template magnitudes
   P2  Galactic latitude of DIA objects and SSO alerts
@@ -112,6 +113,134 @@ def _finish(fig, caption, out, name, pdf_pages, legend=None):
 
 def _fmt(n):
     return f"{int(n):,}"
+
+
+# ============================================================================= S1 Aitoff sky map
+FIELD_TOKENS = (("COSMOS", ("ddf_cosmos",)), ("EDFS", ("ddf_edfs_a", "ddf_edfs_b")), ("ECDFS", ("ddf_ecdfs",)),
+                ("ELAIS-S1", ("ddf_elaiss1",)), ("M49", ("field_m49",)), ("Galactic bulge", ("bulgy",)),
+                ("North Ecliptic Spur", ("nes",)))
+# Label offsets in points (dx, dy) chosen so labels do not overlap each other or the dense regions.
+FIELD_OFFSETS = {"COSMOS": (-6, 16), "EDFS": (-34, -18), "ECDFS": (8, 14), "ELAIS-S1": (14, -16), "M49": (-30, 14),
+                 "Galactic bulge": (-46, -30), "North Ecliptic Spur": (10, 14)}
+
+
+def fig_s1(sky, out, book):
+    """All delivered alerts on the sky, equatorial Aitoff projection (RA increasing to the left, RA = 0 at centre)."""
+    import sky_projection as sp
+    import matplotlib.patheffects as pe
+    from matplotlib.colors import LogNorm
+    from matplotlib.lines import Line2D
+    plt = _plt()
+    fig = plt.figure(figsize=(WIDTH, 7.6))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 0.025], hspace=0.22, wspace=0.04)
+    plane = sp.break_at_wrap(sp.ra_to_x(sky["plane"][0]), sp.dec_to_y(sky["plane"][1]))
+    eclip = sp.break_at_wrap(sp.ra_to_x(sky["ecliptic"][0]), sp.dec_to_y(sky["ecliptic"][1]))
+    ra_ticks = np.array([150, 120, 90, 60, 30, 0, 330, 300, 270, 240, 210])
+    for row, (pop, let, name) in enumerate((("DIA", "(a)", "DIA alerts"), ("SSO", "(b)", "Solar-system (SSO) alerts"))):
+        ax = fig.add_subplot(gs[row, 0], projection="aitoff")
+        cax = fig.add_subplot(gs[row, 1])
+        xe, ye, m = sp.to_map_order(sp.density_grid(sky["grid"][pop]))
+        mk = np.ma.masked_where(m <= 0, m)
+        pos = m[m > 0]
+        mesh = ax.pcolormesh(xe, ye, mk, cmap="viridis", norm=LogNorm(vmin=max(pos.min(), 0.1), vmax=pos.max()),
+                             shading="flat", rasterized=True, zorder=1)
+        ax.plot(*plane, color="#333333", lw=1.0, zorder=3)
+        ax.plot(*eclip, color="#333333", lw=1.0, ls=(0, (4, 2.5)), zorder=3)
+        order = np.argsort(sp.ra_to_x(ra_ticks))
+        ax.set_xticks(sp.ra_to_x(ra_ticks)[order])
+        ax.set_xticklabels([])
+        # RA labels along Dec = +45 deg, where there are no alerts, instead of on the equator
+        for r in ra_ticks[order]:
+            ax.text(sp.ra_to_x(r), np.radians(45.0), f"{r}°", fontsize=7.5, ha="center", va="center", zorder=5,
+                    path_effects=[pe.withStroke(linewidth=2.2, foreground="white")])
+        ax.set_yticks(np.radians([-60, -30, 0, 30, 60]))
+        ax.set_yticklabels(["−60°", "−30°", "0°", "+30°", "+60°"], fontsize=8)
+        ax.grid(True, color="#9a9a9a", lw=0.4, alpha=0.8)
+        ax.tick_params(top=False, right=False)
+        ax.set_ylabel("Declination", labelpad=2)
+        ax.set_xlabel("Right ascension", labelpad=4)
+        ax.text(0.0, 1.06, let, transform=ax.transAxes, fontsize=9.5, fontweight="bold", va="bottom", ha="left")
+        ax.text(0.055, 1.06, f"{name}, N = {_fmt(sky['n'][pop])}", transform=ax.transAxes, fontsize=9, va="bottom", ha="left")
+        cb = fig.colorbar(mesh, cax=cax)
+        cb.set_label(r"Alerts per deg$^2$", fontsize=9)
+        cb.ax.tick_params(labelsize=8, direction="in")
+        if pop == "DIA":
+            for name_f, (ra, dec) in sky["fields"].items():
+                dx, dy = FIELD_OFFSETS[name_f]
+                ax.annotate(name_f, xy=(sp.ra_to_x(ra), sp.dec_to_y(dec)), xytext=(dx, dy), textcoords="offset points",
+                            fontsize=7.5, ha="center", va="center", zorder=6,
+                            path_effects=[pe.withStroke(linewidth=2.4, foreground="white")],
+                            arrowprops=dict(arrowstyle="-", color="#222222", lw=0.6, shrinkA=0, shrinkB=1.5))
+    handles = [Line2D([], [], color="#333333", lw=1.0, label="Galactic plane (b = 0°)"),
+               Line2D([], [], color="#333333", lw=1.0, ls=(0, (4, 2.5)), label="Ecliptic")]
+    cap = (f"Figure S1. Sky distribution of the {_fmt(sky['n']['DIA'] + sky['n']['SSO'])} alerts delivered by Fink for the "
+           f"UTC dates {sky['window'][0]} to {sky['window'][1]}, in equatorial coordinates (ICRS) and an Aitoff projection. "
+           "Right ascension increases to the left, with RA = 0° at the centre; grid lines are every 30° in RA and Dec, "
+           "and RA values are written along Dec = +45°. "
+           "Colour is the number of alerts per deg² in cells of 1° × 1° in RA and Dec, divided by each cell's solid angle, "
+           "on a logarithmic scale; cells without alerts are white. (a) "
+           f"{_fmt(sky['n']['DIA'])} DIA alerts (from {_fmt(sky['n_dia_objects'])} DIA objects); (b) "
+           f"{_fmt(sky['n']['SSO'])} solar-system alerts. The solid curve is the Galactic plane and the dashed curve the "
+           "ecliptic. Labels in (a) mark the deep-drilling fields (COSMOS, EDFS, ECDFS, ELAIS-S1), the M49 field and the "
+           "Galactic bulge and North Ecliptic Spur programmes, each at the mean position of the alerts from visits with "
+           "that target name. Alert positions are those reported in each alert.")
+    return _finish(fig, cap, out, "S1_sky_aitoff_pub", book, legend=(handles, 2)), {}
+
+
+def load_sky(catalog, data_root, raw_files, step=1.0):
+    """Counts per 1 deg cell for DIA and SSO alerts, field label positions from target names, and the checks that
+    guard the figure. Every check raises if it fails."""
+    import sky_projection as sp
+    import duckdb
+    conn = acd.open_catalog(catalog, data_root)
+    qc = conn.execute("SELECT sum(total_rows), sum(dia_rows), sum(sso_rows), sum(ambiguous_rows) FROM source_qc").fetchone()
+    bad = conn.execute("""SELECT count(*) FROM sources WHERE ra_deg IS NULL OR dec_deg IS NULL OR NOT isfinite(ra_deg)
+                          OR NOT isfinite(dec_deg) OR ra_deg < 0 OR ra_deg >= 360 OR dec_deg < -90 OR dec_deg > 90""").fetchone()[0]
+    assert bad == 0, f"{bad} alerts with missing or out-of-range coordinates"
+    cells = conn.execute("""SELECT population, floor(ra_deg)::INT AS i_ra, least(floor(dec_deg + 90)::INT, 179) AS i_dec,
+                                   count(*) AS n
+                            FROM sources GROUP BY 1, 2, 3""").df()
+    box = dict(conn.execute("""SELECT population, count(*) FROM sources WHERE ra_deg >= 148 AND ra_deg < 152
+                                AND dec_deg >= 0 AND dec_deg < 4 GROUP BY 1""").fetchall())
+    n_obj = conn.execute("SELECT count(DISTINCT dia_object_id) FROM sources WHERE population = 'DIA'").fetchone()[0]
+    window = acd.cohort_window(conn)
+    conn.close()
+    assert set(cells.population) <= {"DIA", "SSO"}, set(cells.population)
+    grid = {}
+    for pop in ("DIA", "SSO"):
+        c = cells[cells.population == pop]
+        i_ra, i_dec = sp.cell_index(c.i_ra.to_numpy() + 0.5, c.i_dec.to_numpy() - 89.5, step)
+        assert (i_ra == c.i_ra.to_numpy()).all() and (i_dec == c.i_dec.to_numpy()).all()
+        grid[pop] = sp.count_grid(i_ra, i_dec, c.n.to_numpy(), step)
+    n = {"DIA": int(grid["DIA"].sum()), "SSO": int(grid["SSO"].sum())}
+    # Checkpoints: the map holds every alert, split exactly as in the catalog's own QC totals.
+    assert n["DIA"] == qc[1] and n["SSO"] == qc[2] and qc[3] == 0 and n["DIA"] + n["SSO"] == qc[0], (n, qc)
+    # Independent check of the binning: a 4 x 4 deg box counted directly from coordinates equals the sum of its cells.
+    for pop in ("DIA", "SSO"):
+        assert int(grid[pop][90:94, 148:152].sum()) == int(box.get(pop, 0)), (pop, grid[pop][90:94, 148:152].sum(), box)
+    # Field label positions: mean direction of the alerts whose visit target name carries the token.
+    mem = duckdb.connect()
+    mem.execute("SET threads=16")
+    fields = {}
+    for name, tokens in FIELD_TOKENS:
+        cond = " OR ".join(f"list_contains(string_split(replace(target_name, ' ', ''), ','), '{tok}')" for tok in tokens)
+        r = mem.execute(f"""SELECT count(*), avg(cos(radians(dec))*cos(radians(ra))), avg(cos(radians(dec))*sin(radians(ra))),
+                                   avg(sin(radians(dec)))
+                            FROM read_parquet(?) WHERE {cond}""", [raw_files]).fetchone()
+        assert r[0] > 0, name
+        ra = float(np.mod(np.degrees(np.arctan2(r[2], r[1])), 360.0))
+        dec = float(np.degrees(np.arctan2(r[3], np.hypot(r[1], r[2]))))
+        i_ra, i_dec = sp.cell_index([ra], [dec], step)
+        near = grid["DIA"][max(i_dec[0] - 2, 0):i_dec[0] + 3, [(i_ra[0] + k) % 360 for k in range(-2, 3)]].sum()
+        assert near > 0, f"no DIA alerts within 2 deg of the {name} label"
+        fields[name] = (ra, dec)
+    mem.close()
+    plane = sp.galactic_plane_radec()
+    eclip = sp.ecliptic_radec()
+    checks = {"total_alerts": int(qc[0]), "dia": n["DIA"], "sso": n["SSO"], "bad_coordinates": int(bad),
+              "box_148_152_0_4": {k: int(v) for k, v in box.items()}, "field_positions": fields}
+    return {"grid": grid, "n": n, "n_dia_objects": int(n_obj), "fields": fields, "plane": plane, "ecliptic": eclip,
+            "window": window, "checks": checks}
 
 
 # ============================================================================= M1 schematic
@@ -255,13 +384,15 @@ def fig_p3(tp, sci, out, book):
     dusty = d.field.isin(DUSTY)
     groups = [("SIMBAD type", typed, BLUE), ("No SIMBAD object within 1″", nom, GREY), ("Crossmatch failed", fail, ORANGE)]
     scopes = [("all fields", pd.Series(True, index=d.index)), ("outside bulge and plane", ~dusty), ("bulge and plane fields", dusty)]
-    fig, axes = plt.subplots(2, 3, figsize=(WIDTH, 5.3), gridspec_kw={"hspace": 0.36, "wspace": 0.52})
+    fig = plt.figure(figsize=(WIDTH, 8.4))
+    gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.08], hspace=0.42, wspace=0.28)
+    ha, hb, hc, hd = (fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1, 1]))
     edges = np.arange(13, 25.01, 0.25)
     med = {}
-    for ax, band, (sname, sm), let, lab in ((axes[0, 0], "i", scopes[0], "(a)", "i band, all fields"),
-                                            (axes[0, 1], "i", scopes[1], "(b)", "i, outside\nbulge/plane"),
-                                            (axes[0, 2], "i", scopes[2], "(c)", "i, bulge\nand plane"),
-                                            (axes[1, 0], "r", scopes[0], "(d)", "r band, all fields")):
+    for ax, band, (sname, sm), let, lab in ((ha, "i", scopes[0], "(a)", "i band, all fields"),
+                                            (hb, "i", scopes[1], "(b)", "i band, outside bulge and plane"),
+                                            (hc, "i", scopes[2], "(c)", "i band, bulge and plane fields"),
+                                            (hd, "r", scopes[0], "(d)", "r band, all fields")):
         for gname, m, col in groups:
             v = d.loc[sm & m & d[f"ok_{band}"], f"mag_{band}"]
             med[(sname, gname, band)] = (len(v), float(v.median()) if len(v) else np.nan)
@@ -271,34 +402,37 @@ def fig_p3(tp, sci, out, book):
         ax.set_xlim(13, 25)
         ax.set_ylim(0, None)
         ax.set_xlabel(rf"${band}_{{\rm tmpl}}$ (AB)")
-        ax.set_ylabel("Normalised density" if ax in (axes[0, 0], axes[1, 0]) else "")
-        _label(ax, let, None, lab)
+        ax.set_ylabel("Normalised density")
+        _label(ax, let, lab)
         top = ax.get_ylim()[1]
-        ax.set_ylim(0, top * 1.22)
+        ax.set_ylim(0, top * (2.0 if ax is ha else 1.6))
+    handles = [Line2D([], [], color=c, lw=1.6, label=g) for g, _, c in groups]
+    ha.legend(handles=handles, loc="upper right", bbox_to_anchor=(1.0, 0.86), fontsize=7.5, handlelength=1.4)
     fb = np.arange(14, 25.01, 0.5)
-    e = axes[1, 1]
+    e = fig.add_subplot(gs[2, 0])
     ans = d.ok_i & ~fail
     for (sname, sm), col, short in zip(scopes, (INK, BLUE, ORANGE), ("all fields", "outside bulge/plane", "bulge/plane")):
         s = ans & sm
         _frac(e, d.mag_i[s], typed[s], fb, col, short)
     e.set_ylim(0, 0.34)
+    e.set_xlim(14, 25)
     e.set_xlabel(r"$i_{\rm tmpl}$ (AB)")
-    e.set_ylabel("SIMBAD-typed fraction")
-    e.legend(loc="center right", fontsize=7)
+    e.set_ylabel("Fraction with a SIMBAD type")
+    e.legend(loc="upper right", fontsize=7.5)
     _label(e, "(e)")
-    f = axes[1, 2]
+    f = fig.add_subplot(gs[2, 1])
     gaia = d.gaia_name.notna()
-    for gname, m, col in groups[:2]:
+    for (gname, m, col), short in zip(groups[:2], ("SIMBAD type", "No SIMBAD match")):
         s = d.ok_i & m
-        _frac(f, d.mag_i[s], gaia[s], fb, col, gname)
-    f.set_ylim(0, 1.12)
+        _frac(f, d.mag_i[s], gaia[s], fb, col, short)
+    f.set_ylim(0, 1.18)
+    f.set_xlim(14, 25)
     f.set_xlabel(r"$i_{\rm tmpl}$ (AB)")
-    f.set_ylabel("Gaia DR3-matched fraction")
-    f.legend(loc="center left", fontsize=7)
-    _label(f, "(f)", x=0.86, y=0.3)
-    for ax in axes.ravel():
+    f.set_ylabel("Fraction with a Gaia DR3 source")
+    f.legend(loc="center left", fontsize=7.5)
+    _label(f, "(f)")
+    for ax in fig.axes:
         ax.minorticks_on()
-    handles = [Line2D([], [], color=c, lw=1.6, label=g) for g, _, c in groups]
     def m(s, g, b="i"):
         n, v = med[(s, g, b)]
         return f"{v:.2f} ({_fmt(n)})"
@@ -315,7 +449,7 @@ def fig_p3(tp, sci, out, book):
            "was answered. (f) Fraction with a Gaia DR3 source within 1″ in Fink's crossmatch, for typed and unmatched "
            "objects (a lower limit where Fink's Gaia crossmatch failed). Shaded bands are 95% Wilson intervals; bins with "
            "fewer than 20 objects are not shown.")
-    return _finish(fig, cap, out, "P3_simbad_comparison_pub", book, legend=(handles, 3)), {}
+    return _finish(fig, cap, out, "P3_simbad_comparison_pub", book), {}
 
 
 # ============================================================================= T1-T3
@@ -558,6 +692,13 @@ def fig_r3(v, order, out, book):
 
 
 # ============================================================================= data and driver
+def raw_files_list(catalog, data_root):
+    conn = acd.open_catalog(catalog, data_root)
+    files = [r[0] for r in conn.execute("SELECT DISTINCT raw_file FROM sources ORDER BY 1").fetchall()]
+    conn.close()
+    return files
+
+
 def load(run_dir, catalog, data_root):
     """Per-object tables from the notebook run, alert-level counts from the catalog (read-only)."""
     import red_objects_and_red_bands as red
@@ -586,7 +727,8 @@ def load(run_dir, catalog, data_root):
     from astropy.coordinates import SkyCoord
     import astropy.units as u
     sso_b = SkyCoord(ra=sso.ra_deg.to_numpy() * u.deg, dec=sso.dec_deg.to_numpy() * u.deg).galactic.b.deg
-    return {"tp": tp, "sci": sci, "tc": tc, "v": v, "bands": bands, "dmag": dmag, "n_pos": n_pos,
+    sky = load_sky(catalog, data_root, raw_files_list(catalog, data_root))
+    return {"sky": sky, "tp": tp, "sci": sci, "tc": tc, "v": v, "bands": bands, "dmag": dmag, "n_pos": n_pos,
             "det": det, "sso_b": sso_b, "red_order": list(red.PLX_PSTAR_ORDER)}
 
 
@@ -600,7 +742,8 @@ def build(run_dir, catalog, data_root, locus, out):
     info = {}
     book_path = out / "Fink_LSST_paper_figures.pdf"
     with PdfPages(book_path, metadata={"Title": "Fink LSST alert sample: figures", "Author": "Darim Shamsi"}) as book:
-        for name, fn in (("M1", lambda: fig_m1(out, book)),
+        for name, fn in (("S1", lambda: fig_s1(D["sky"], out, book)),
+                         ("M1", lambda: fig_m1(out, book)),
                          ("P1", lambda: fig_p1(D["bands"], D["det"], D["dmag"], D["n_pos"], D["tp"], out, book)),
                          ("P2", lambda: fig_p2(D["tp"], D["sso_b"], out, book)),
                          ("P3", lambda: fig_p3(D["tp"], D["sci"], out, book)),
@@ -613,6 +756,7 @@ def build(run_dir, catalog, data_root, locus, out):
             info[name] = {"png": str(path), **extra}
             print(name, path, flush=True)
     assert sum(h.sum() for h in D["dmag"].values()) <= D["n_pos"]
+    info["sky_checks"] = D["sky"]["checks"]
     info["n_pos_alerts_catalog"] = D["n_pos"]
     info["n_pos_alerts_in_12_27"] = int(sum(h.sum() for h in D["dmag"].values()))
     (out / "figures_summary.json").write_text(json.dumps(info, indent=2, default=str) + "\n")
