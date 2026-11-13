@@ -1,0 +1,106 @@
+{
+  "acquisitions": [
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-02-25_to_2026-03-25_b1c7b482b56b",
+      "characterization": {
+        "code_sha": "d34f6c244a2cc0c6ec6840d63e274b7c79fd7424",
+        "manifest_path": "/astro/store/shire/FINK/manifests/g4a-month1-20260225_20260325-v1/manifest.json",
+        "manifest_sha256": "1ced92d8c150383b3fdce19e4a682cf22dcc94fec462e33ab78063629f2e8da1",
+        "run_id": "g4a-month1-20260225_20260325-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/g4a-month1-20260225_20260325-v1/characterization_summary.json",
+        "summary_sha256": "47a7adf35689cc409a90f6de739a05d1b510dde7f416dbffb95073bd67c9e540"
+      },
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "output_sha256": {
+        "characterization_report.md": "2b87740679a16d3b42c6753e0cad1370e80594190b8cf2e088a0321185e84085",
+        "characterization_summary.json": "47a7adf35689cc409a90f6de739a05d1b510dde7f416dbffb95073bd67c9e540",
+        "date_counts.csv": "033ef468fde898811d475e20e0b495e7bfdbe7b476a138e63f723518f6158011",
+        "field_inventory.csv": "acb52f4852a9a51885c7fe0b67370024e0f2f92961f4325e7a6f74dd62d92ea7",
+        "multiplicity_histogram.csv": "01cda899987e877c44bd1b623e61f36fd96f898798979c0d67f86d980bd1e2ae"
+      },
+      "raw_stat_fingerprint": "d4287a571b3e41f9415b2fe6e38fed62d6c2949fe30d3e7315cfaa611e6b2994"
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-03-25_to_2026-04-25_0c852cd059fa",
+      "characterization": {
+        "code_sha": "952b1401430d01cc1d6b00c58dac44c87225a691",
+        "manifest_path": "/astro/store/shire/FINK/manifests/g5-month2-characterization-v1/manifest.json",
+        "manifest_sha256": "30faeb3a0ce7554fa4bd4dbf1c0972137847f97c29844c8be30f4030340d3ec6",
+        "run_id": "g5-month2-characterization-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/g5-month2-characterization-v1/characterization_summary.json",
+        "summary_sha256": "4081484c4c22359ab6a7588c8de30e5ce127d26a01d58966ca957d76542807ac"
+      },
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "output_sha256": {
+        "characterization_report.md": "8bc000705d9e5fb1f40fcc8cf392b86dce029e3bd0b547fdc1208c1dca318f0b",
+        "characterization_summary.json": "4081484c4c22359ab6a7588c8de30e5ce127d26a01d58966ca957d76542807ac",
+        "date_counts.csv": "f36f2cb48c78d3c96f27d363dd7939590ded24259f8f5e0e62d1c3161b82c051",
+        "field_inventory.csv": "b74b8f814cf984d2159329f2b734de7718660608d31f3bc8ba22aae69c80ac29",
+        "multiplicity_histogram.csv": "19a19b87133f80805d41967367840204597c7558ace12101fb340a191338d531"
+      },
+      "raw_stat_fingerprint": "1ebaf51679e28e2afeca73d1abe211b1ed0a4afef91d34cb83939e8177718412"
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-04-25_to_2026-05-25_1ccf601aa29f",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month3-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "f863443978a9d91708bf2e58e7e32cee38bf95e8fecf6bae9c59af86b2103d66",
+        "run_id": "final-month3-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month3-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "dcd47100a8d58f5b04b95e2b7d651da3ba7f72cf0e03b518ebd0673a50915e47"
+      },
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "output_sha256": {
+        "characterization_report.md": "220073d084163684cf95ba37a803792852532daf4bbcbff7b17ff063a88968ec",
+        "characterization_summary.json": "dcd47100a8d58f5b04b95e2b7d651da3ba7f72cf0e03b518ebd0673a50915e47",
+        "date_counts.csv": "16c1f2ef6d883ff35b507d50104a009c7347cc442e34a28abffb0a83df5e00ae",
+        "field_inventory.csv": "e1f4c1a48950fa9f854819d780864490c2aa4f37f12dac894d441c5ea9241578",
+        "multiplicity_histogram.csv": "123511d419e1972176d813780c60eef3bd8bf5d5f9d56a576d2f461a561a4df4"
+      },
+      "raw_stat_fingerprint": "860dbd9309d1d105ac3bc71f5e67d6591a162a999d3f89ac697a1373ab3316fc"
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-05-25_to_2026-06-25_ecc26d8ca904",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month4-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "3c230a22d009522839422761090c8606c4c87db08f4f30b2314c2aa53c4e0bef",
+        "run_id": "final-month4-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month4-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "b1bf36bfb159a70851d7eba681137d7d558f8aab3bbe672f9095ed2ff1745fd8"
+      },
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "output_sha256": {
+        "characterization_report.md": "2bb33ecd4c5ac3d5e4e675a0885ef786d629ff8d528fef5cf03c2a1dd6e92d4f",
+        "characterization_summary.json": "b1bf36bfb159a70851d7eba681137d7d558f8aab3bbe672f9095ed2ff1745fd8",
+        "date_counts.csv": "2ec47b729da7a2cb42c1e8f7d42db90a8100beb97a41b3a6e9129e7e1b20bc32",
+        "field_inventory.csv": "b32d3c9abb105dea74b3a8196e71c668f5623224be5b6934f74fad7b2d6a1231",
+        "multiplicity_histogram.csv": "2e53d071e6c1a9a8b1e00acd579906e21cf49e7ee6010d26f65bf955a05d8c95"
+      },
+      "raw_stat_fingerprint": "5ff07166f92140ae17d4e69116bde05a6ac9c226cec9242171fd6c884f8047cb"
+    },
+    {
+      "acquisition_id": "acq_lsst_ls_v1_2026-06-25_to_2026-07-14_1ad0e9dadca7",
+      "characterization": {
+        "code_sha": "769568231e9c692802a2d6dfa79aab8efd7d59f8",
+        "manifest_path": "/astro/store/shire/FINK/manifests/final-month5-characterization-20261006-v1/manifest.json",
+        "manifest_sha256": "246df4734a2c9893b9be6080971f15aef23d08c4cd5a9b075cbd0ec081221e77",
+        "run_id": "final-month5-characterization-20261006-v1",
+        "summary_path": "/astro/store/shire/FINK/outputs/final-month5-characterization-20261006-v1/characterization_summary.json",
+        "summary_sha256": "d2db345bf0403e30863731df9eba34ed65267e75afda9c27954bdcef53b2a1cc"
+      },
+      "compatibility": "COMPATIBLE_WITH_LIMITATIONS",
+      "output_sha256": {
+        "characterization_report.md": "3451156d889ad3fd1645a797f9108e2bf74b6b1832b26f9381e740b807562a28",
+        "characterization_summary.json": "d2db345bf0403e30863731df9eba34ed65267e75afda9c27954bdcef53b2a1cc",
+        "date_counts.csv": "935a96ab748744a820e4e0cfa527d4fc5d1022830309188368b5c09e5ff5d6d1",
+        "field_inventory.csv": "9b891dce342369debd4b52b68ceb8ba5b3e6107f809cacd890773ec5322d77d8",
+        "multiplicity_histogram.csv": "a58c3c5db06bf529c555c6d1cec35379447f11e365a969c9f0ee9827b1c1d4dd"
+      },
+      "raw_stat_fingerprint": "b123af11f4e09938d2ab550dff74a7c7a9c5f8a6e6f3da5e6abac87ba02b041e"
+    }
+  ],
+  "cohort_sha256": "65117ce378064135b40bea714ac630407b0c8fef209a1089ee80f5a49237deda",
+  "status": "VERIFIED"
+}
