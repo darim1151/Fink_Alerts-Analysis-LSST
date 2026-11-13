@@ -391,7 +391,7 @@ def _letter(ax, s, text=None):
 
 
 def fig_t1_publication(tc, tp, locus_file, out_dir, name="T1_transient_colours_pub"):
-    """Publication version of T1 (no titles; caption carries the description). (a) template colours of objects with
+    """Publication version of T1: no titles; legends inside the panels and the caption printed under them. (a) template colours of objects with
     usable g, r, i templates outside the bulge and plane fields; (b) same-night difference-flux colours over (a);
     (c) time span of the g, r, i alerts used. Returns the PNG path and the numbers quoted in the caption."""
     import plot_colour_diagrams as kit
@@ -423,6 +423,28 @@ def fig_t1_publication(tc, tp, locus_file, out_dir, name="T1_transient_colours_p
     c.set_xlabel("Time span of the g, r, i alerts (h)")
     c.set_ylabel("Number of objects")
     _letter(c, "(c)")
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    grey = Patch(facecolor="#9a9a9a", edgecolor="none", alpha=0.6, label="Template density")
+    cont = Line2D([], [], color=acd.INK_MUTED, lw=1.0, label="50, 80, 95%")
+    locus = Patch(facecolor=kit.LOCUS_COLOR, edgecolor="none", alpha=kit.LOCUS_ALPHA, label=r"Stellar locus $\pm\,2\sigma$")
+    pts = Line2D([], [], marker="o", ls="none", color=BLUE, markeredgecolor="white", markersize=7, label="Transients")
+    # One legend for (a) and (b), in the empty upper-left area of (a) so it covers no data.
+    a.legend(handles=[grey, cont, locus, pts], loc="upper left", bbox_to_anchor=(0.01, 0.88), frameon=True, framealpha=0.92,
+             edgecolor="#cccccc", fontsize=12.5, borderpad=0.5, handlelength=1.6)
+    n_off = int((~ins).sum())
+    caption = (f"Figure T1. Colours of the transient light compared with the static sky, for DIA objects outside the Galactic "
+               f"bulge and plane fields (no extinction correction). (a) Template colours of the {len(static):,} objects with "
+               f"usable g, r and i templates; grey shading is the logarithmic number density and the contours enclose 50, 80 "
+               f"and 95% of the objects. (b) Colours of the change for {len(t):,} objects (blue), from difference fluxes with "
+               f"psfFlux > 0 and S/N \u2265 5 in g, r and i on the same night (inverse-variance-weighted nightly means; one night "
+               f"per object, the one whose weakest band has the highest S/N), over the template colours of (a) in grey; {n_off} "
+               f"objects fall outside the plotted range. (c) Time from the first to the last g, r and i alert used for each "
+               f"object in (b). In (a) and (b) the red band is the Rubin COSMOS stellar locus \u00b1 2\u03c3.")
+    import textwrap
+    for keep in ("psfFlux > 0", "S/N \u2265 5", "\u00b1 2\u03c3", "(a)", "(b)", "(c)"):  # never break inside these
+        caption = caption.replace(keep, keep.replace(" ", "\u00a0"))
+    fig.text(0.125, -0.04, "\n".join(textwrap.wrap(caption, 150)), ha="left", va="top", fontsize=14, linespacing=1.45)
     out = Path(out_dir)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"{name}.{ext}")
