@@ -367,6 +367,70 @@ def fig_t1_t3_transient_colours(tc, tp, locus_file, figs_dir, record, res):
     return paths
 
 
+# ============================================================================= publication versions
+# Journal style: no titles or headings on the figure (everything descriptive goes in the caption), panel letters,
+# axis labels and tick labels large enough to read at single-figure width, counts inside the panels.
+PUB_RC = {"font.size": 15, "axes.labelsize": 17, "xtick.labelsize": 14, "ytick.labelsize": 14, "legend.fontsize": 13,
+          "axes.linewidth": 1.1, "xtick.major.width": 1.1, "ytick.major.width": 1.1, "xtick.major.size": 5,
+          "ytick.major.size": 5, "xtick.direction": "in", "ytick.direction": "in", "xtick.top": True, "ytick.right": True,
+          "axes.grid": False, "savefig.dpi": 300, "savefig.bbox": "tight", "mathtext.default": "regular",
+          "axes.edgecolor": "black", "axes.labelcolor": "black", "xtick.color": "black", "ytick.color": "black"}
+
+
+def _pub_plt():
+    plt = _plt()
+    plt.rcParams.update(PUB_RC)
+    return plt
+
+
+def _letter(ax, s, text=None):
+    """Panel letter, and optional count line, in the upper-left corner inside the axes."""
+    ax.text(0.04, 0.95, s, transform=ax.transAxes, va="top", ha="left", fontsize=17, fontweight="bold", color=INK, zorder=6)
+    if text:
+        ax.text(0.15, 0.95, text, transform=ax.transAxes, va="top", ha="left", fontsize=15, color=INK, zorder=6)
+
+
+def fig_t1_publication(tc, tp, locus_file, out_dir, name="T1_transient_colours_pub"):
+    """Publication version of T1 (no titles; caption carries the description). (a) template colours of objects with
+    usable g, r, i templates outside the bulge and plane fields; (b) same-night difference-flux colours over (a);
+    (c) time span of the g, r, i alerts used. Returns the PNG path and the numbers quoted in the caption."""
+    import plot_colour_diagrams as kit
+    plt = _pub_plt()
+    sl = kit.load_locus(locus_file)
+    t = tc[~tc.field.isin(DUSTY)]
+    static = tp[tp.panel_a & ~tp.field.isin(DUSTY)]
+    xr, yr = T_RANGES
+    fig, axes = plt.subplots(1, 3, figsize=(17.5, 5.6), gridspec_kw={"width_ratios": [1, 1, 0.9], "wspace": 0.28})
+    a, b, c = axes
+    acd.background(a, static, "gr", "ri", xr, yr)
+    kit.draw_locus(a, sl, "gr", "ri")
+    acd.background(b, static, "gr", "ri", xr, yr)
+    kit.draw_locus(b, sl, "gr", "ri")
+    ins = t.gr.between(*xr) & t.ri.between(*yr)
+    b.scatter(t.loc[ins, "gr"], t.loc[ins, "ri"], s=12, color=BLUE, edgecolors="white", linewidths=0.25, alpha=0.85,
+              rasterized=True, zorder=4)
+    for ax, xl, yl in ((a, r"$(g-r)_{\rm tmpl}$", r"$(r-i)_{\rm tmpl}$"), (b, r"$(g-r)_{\rm diff}$", r"$(r-i)_{\rm diff}$")):
+        ax.set_xlim(*xr)
+        ax.set_ylim(*yr)
+        ax.set_xlabel(xl)
+        ax.set_ylabel(yl)
+    _letter(a, "(a)", f"N = {len(static):,}")
+    _letter(b, "(b)", f"N = {len(t):,}")
+    top = max(6.0, float(np.ceil(t.span_hours.max())))
+    c.hist(t.span_hours, bins=np.arange(0, top + 0.01, 0.25), color=BLUE, edgecolor="white", linewidth=0.4)
+    c.set_xlim(-0.15, top)
+    c.set_ylim(0, None)
+    c.set_xlabel("Time span of the g, r, i alerts (h)")
+    c.set_ylabel("Number of objects")
+    _letter(c, "(c)")
+    out = Path(out_dir)
+    for ext in ("png", "pdf"):
+        fig.savefig(out / f"{name}.{ext}")
+    plt.close(fig)
+    return out / f"{name}.png", {"n_template": int(len(static)), "n_transient": int(len(t)), "n_off_axis": int((~ins).sum()),
+                                 "span_hours_max": round(float(t.span_hours.max()), 2)}
+
+
 # ============================================================================= counts for the paper figures
 def paper_figure_counts(export_table, tp):
     """Objects per panel and per row of figures L3 (by SIMBAD group) and L4 (by Fink label) of notebook 04, which exclude
