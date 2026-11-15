@@ -519,7 +519,7 @@ def fig_t1(tc, tp, sl, out, book):
            "same night (inverse-variance-weighted nightly means; one night per object, the one whose weakest band has the "
            f"highest S/N), over the template colours of (a) in grey; {off} objects fall outside the plotted range. (c) Time "
            "from the first to the last g, r and i alert used for each object in (b). In (a) and (b) the red band is the "
-           "Rubin COSMOS stellar locus ± 2σ.")
+           "region within 2σ of the Rubin COSMOS stellar locus in both colours.")
     return _finish(fig, cap, out, "T1_transient_colours_pub", book, legend=([dens, cont, locus, pts], 2)), {"off": off}
 
 
@@ -563,7 +563,7 @@ def fig_t2(tc, sl, out, book):
                      "each object's latest delivered alert (blue), over all transients outside the bulge and plane fields "
                      "(grey density and 50, 80, 95% contours). Panels and numbers of objects:",
                      "No object in this sample has the first-alert code −1 at its latest alert. CATS labels are "
-                     "classifier outputs, not verified types. The red band is the Rubin COSMOS stellar locus ± 2σ.",
+                     "classifier outputs, not verified types. The red band is the region within 2σ of the Rubin COSMOS stellar locus in both colours.",
                      out, book)
 
 
@@ -576,7 +576,7 @@ def fig_t3(tc, sl, out, book):
                      "transients outside the bulge and plane fields (grey density and 50, 80, 95% contours). Panels and "
                      "numbers of objects:",
                      "“Crossmatch failed” means the SIMBAD query failed on every alert, so the status is unknown. "
-                     "The red band is the Rubin COSMOS stellar locus ± 2σ.",
+                     "The red band is the region within 2σ of the Rubin COSMOS stellar locus in both colours.",
                      out, book)
 
 

@@ -7,7 +7,7 @@ a stellar-locus file such as RubinStellarLocus_COSMOS.txt, and draws four colour
     g-r vs u-g,  r-i vs g-r,  i-z vs r-i,  z-y vs i-z
 
 Each panel shows all DIA objects with the needed bands as a grey log-density map with contours enclosing 50/80/95%
-of them, the stellar locus as a red band (mean +/- 2 sigma), and optionally a
+of them, the stellar locus as a red band (within 2 sigma of the locus in both colours), and optionally a
 selected subsample as blue points. With --facet, one row is drawn per group of a table column.
 
 Examples (run from this folder):
@@ -82,12 +82,49 @@ def load_locus(path):
     return sl
 
 
+def locus_region(sl, xc, yc, nsig=2.0, n=700, oversample=4):
+    """Points within nsig sigma of the stellar locus in BOTH colours.
+
+    The locus is a curve parametrised by g-i: at each tabulated point it has a median colour (x, y) and a scatter
+    (sigma_x, sigma_y). The region is the union of the ellipses ((X - x)/(nsig sigma_x))^2 + ((Y - y)/(nsig sigma_y))^2 <= 1
+    around every point (tabulated points are also interpolated in g-i, `oversample` times finer). Returns the grid
+    centres (X, Y) and a boolean mask on that grid.
+
+    This replaces an earlier fill_between(x, y - 2 sigma_y, y + 2 sigma_y), which used only the scatter of the y colour
+    and treated the locus as a function of x: where the locus runs vertically (e.g. g-r ~ 1.26 for g-i = 2.1-2.5 in
+    r-i vs g-r) that band had almost no width in x.
+    """
+    gi = sl["g-i"].to_numpy(dtype=float)
+    fine = np.linspace(gi.min(), gi.max(), (len(gi) - 1) * oversample + 1)
+    x = np.interp(fine, gi, sl[LOCUS_COLS[xc][0]].to_numpy(dtype=float))
+    y = np.interp(fine, gi, sl[LOCUS_COLS[yc][0]].to_numpy(dtype=float))
+    sx = np.interp(fine, gi, sl[LOCUS_COLS[xc][1]].to_numpy(dtype=float)) * nsig
+    sy = np.interp(fine, gi, sl[LOCUS_COLS[yc][1]].to_numpy(dtype=float)) * nsig
+    if (sx <= 0).any() or (sy <= 0).any():
+        raise ValueError("stellar-locus widths must be positive")
+    xs = np.linspace((x - sx).min() - 0.02, (x + sx).max() + 0.02, n)
+    ys = np.linspace((y - sy).min() - 0.02, (y + sy).max() + 0.02, n)
+    X, Y = np.meshgrid(xs, ys)
+    mask = np.zeros(X.shape, dtype=bool)
+    for k in range(0, len(x), 16):
+        dx = (X[..., None] - x[k:k + 16]) / sx[k:k + 16]
+        dy = (Y[..., None] - y[k:k + 16]) / sy[k:k + 16]
+        mask |= ((dx * dx + dy * dy) <= 1.0).any(axis=-1)
+    return X, Y, mask
+
+
+_REGION_CACHE = {}
+
+
 def draw_locus(ax, sl, xc, yc):
-    """Red band: x = mean locus colour xc, y = mean locus colour yc +/- 2 sigma(yc)."""
-    x = sl[LOCUS_COLS[xc][0]].to_numpy()
-    y, sig = sl[LOCUS_COLS[yc][0]].to_numpy(), sl[LOCUS_COLS[yc][1]].to_numpy()
-    ax.fill_between(x, y + 2 * sig, y - 2 * sig, color=LOCUS_COLOR, alpha=LOCUS_ALPHA, interpolate=True,
-                    antialiased=True, linewidth=0, zorder=2)
+    """Red band: the stellar locus +/- 2 sigma, using the scatter of BOTH colours (see locus_region)."""
+    cols = ["g-i", LOCUS_COLS[xc][0], LOCUS_COLS[xc][1], LOCUS_COLS[yc][0], LOCUS_COLS[yc][1]]
+    key = (xc, yc, sl[cols].to_numpy(dtype=float).tobytes())
+    if key not in _REGION_CACHE:
+        _REGION_CACHE[key] = locus_region(sl, xc, yc)
+    X, Y, mask = _REGION_CACHE[key]
+    ax.contourf(X, Y, mask.astype(float), levels=[0.5, 1.5], colors=[LOCUS_COLOR], alpha=LOCUS_ALPHA,
+                antialiased=True, zorder=2)
 
 
 def draw_background(ax, d, xc, yc, xr, yr):
