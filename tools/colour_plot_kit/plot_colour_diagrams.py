@@ -203,7 +203,8 @@ def make_figure(data, locus=None, out="figures", name=None, select=None, facet=N
     sl = load_locus(locus) if locus else None
     sub = d.query(select) if select else None
     scope = "all fields" if include_dusty else "outside Galactic bulge and plane fields"
-    locus_txt = f"red band: stellar locus ({Path(locus).name}) mean ± 2σ" if locus else "no stellar locus drawn"
+    locus_txt = (f"red band: within 2σ of the stellar locus ({Path(locus).name}) in both colours" if locus
+                 else "no stellar locus drawn")
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
 

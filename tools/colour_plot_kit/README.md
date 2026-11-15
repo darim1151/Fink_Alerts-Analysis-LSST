@@ -54,8 +54,10 @@ Options:
 - `--out` sets the output folder and `--name` the file name.
 
 The four panels are g−r vs u−g, r−i vs g−r, i−z vs r−i and z−y vs i−z. The grey map shows all objects that have the
-two colours: log density plus contours enclosing 50/80/95% of them. The red band is the locus mean ± 2σ, drawn exactly
-as in the example code (x = locus colour, y = next colour ± 2 × its sigma). Blue points are the selected subsample.
+two colours: log density plus contours enclosing 50/80/95% of them. The red band is the region within 2σ of the locus
+in both colours: the union of the ellipses with half-widths 2σ(x colour) and 2σ(y colour) around each tabulated locus
+point. (The original example code shaded only y ± 2σ(y) as a function of x, which gives the band no width where the
+locus runs vertically, e.g. near g−r ≈ 1.26, r−i ≈ 1.0.) Blue points are the selected subsample.
 Each panel prints how many objects it shows.
 
 ## Table columns
