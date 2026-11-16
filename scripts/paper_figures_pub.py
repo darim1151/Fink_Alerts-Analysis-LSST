@@ -3,7 +3,8 @@
 
 Journal style throughout: figures drawn at final print width (7.2 in, two-column page), no titles or headings on the
 figure, panel letters (a), (b), ... inside the axes, legends inside or directly under the panels, and the full caption
-printed under each figure. Every count quoted in a caption is computed from the data when the figure is drawn.
+printed under each figure (left out with --no-captions, for when the captions live in the LaTeX source). Every count
+quoted in a caption is computed from the data when the figure is drawn.
 
 Figures (names follow the paper notes):
   S1  all alerts on the sky, equatorial Aitoff projection (DIA and SSO)
@@ -21,7 +22,7 @@ Inputs are the tables of a complete notebook run (01, 02, 06) plus the analytica
 alert-level counts. Usage on the data host:
 
     python paper_figures_pub.py --run-dir <notebook run> --catalog <analytics.duckdb> --data-root /astro/store/shire/FINK \
-        --locus <RubinStellarLocus_COSMOS.txt> --out <new folder>
+        --locus <RubinStellarLocus_COSMOS.txt> --out <new folder> [--no-captions]
 """
 from __future__ import annotations
 
@@ -59,6 +60,7 @@ STYLE = {
     "legend.handlelength": 1.5, "lines.linewidth": 1.2, "hatch.linewidth": 0.6,
 }
 CAPTION_PT = 8.6
+SHOW_CAPTIONS = True  # False (--no-captions): nothing else in the figures changes, the saved image just ends lower down
 
 
 def _plt():
@@ -95,13 +97,14 @@ def _finish(fig, caption, out, name, pdf_pages, legend=None):
                         frameon=False, fontsize=8.5, handlelength=1.6, columnspacing=1.6)
         fig.canvas.draw()
         y = lg.get_window_extent(r).transformed(fig.transFigure.inverted()).y0
-    width_in = (x1 - x0) * fig.get_figwidth()
-    chars = int(width_in * 72 / (0.49 * CAPTION_PT))
-    for keep in ("psfFlux > 0", "S/N ≥ 5", "± 2σ", "pstar ≥ 0.5", "pstar < 0.5", "(a)", "(b)", "(c)",
-                 "(d)", "(e)", "(f)", "(g)", "(h)", "(i)", "(j)", "(k)", "(l)", "S/N > 5", "g − i > 2", "m = 31.4"):
-        caption = caption.replace(keep, keep.replace(" ", " "))
-    text = "\n".join(textwrap.wrap(caption, chars))
-    fig.text(x0, y - 0.14 / H, text, ha="left", va="top", fontsize=CAPTION_PT, linespacing=1.4)
+    if SHOW_CAPTIONS:
+        width_in = (x1 - x0) * fig.get_figwidth()
+        chars = int(width_in * 72 / (0.49 * CAPTION_PT))
+        for keep in ("psfFlux > 0", "S/N ≥ 5", "± 2σ", "pstar ≥ 0.5", "pstar < 0.5", "(a)", "(b)", "(c)",
+                     "(d)", "(e)", "(f)", "(g)", "(h)", "(i)", "(j)", "(k)", "(l)", "S/N > 5", "g − i > 2", "m = 31.4"):
+            caption = caption.replace(keep, keep.replace(" ", " "))
+        text = "\n".join(textwrap.wrap(caption, chars))
+        fig.text(x0, y - 0.14 / H, text, ha="left", va="top", fontsize=CAPTION_PT, linespacing=1.4)
     out = Path(out)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"{name}.{ext}", bbox_inches="tight", pad_inches=0.08)
@@ -732,7 +735,9 @@ def load(run_dir, catalog, data_root):
             "det": det, "sso_b": sso_b, "red_order": list(red.PLX_PSTAR_ORDER)}
 
 
-def build(run_dir, catalog, data_root, locus, out):
+def build(run_dir, catalog, data_root, locus, out, captions=True):
+    global SHOW_CAPTIONS
+    SHOW_CAPTIONS = bool(captions)
     import plot_colour_diagrams as kit
     from matplotlib.backends.backend_pdf import PdfPages
     out = Path(out)
@@ -756,6 +761,7 @@ def build(run_dir, catalog, data_root, locus, out):
             info[name] = {"png": str(path), **extra}
             print(name, path, flush=True)
     assert sum(h.sum() for h in D["dmag"].values()) <= D["n_pos"]
+    info["captions"] = SHOW_CAPTIONS
     info["sky_checks"] = D["sky"]["checks"]
     info["n_pos_alerts_catalog"] = D["n_pos"]
     info["n_pos_alerts_in_12_27"] = int(sum(h.sum() for h in D["dmag"].values()))
@@ -771,5 +777,6 @@ if __name__ == "__main__":
     p.add_argument("--data-root", required=True)
     p.add_argument("--locus", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--no-captions", action="store_true", help="leave the caption text out of every figure")
     a = p.parse_args()
-    build(a.run_dir, a.catalog, a.data_root, a.locus, a.out)
+    build(a.run_dir, a.catalog, a.data_root, a.locus, a.out, captions=not a.no_captions)
