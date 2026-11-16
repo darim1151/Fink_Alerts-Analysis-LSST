@@ -75,3 +75,18 @@ def test_select_f9_keeps_c1_sample_rule_and_needs_usable_class():
 def test_psf_mag_zero_point():
     assert ef.psf_mag([3631e9])[0] == pytest.approx(0.0, abs=2e-3)   # 3631 Jy is AB = 0 (31.4 zero point in nJy)
     assert np.isnan(ef.psf_mag([-1.0])[0])
+
+
+def test_select_f9_edp2_uses_edp2_colours_for_the_same_objects():
+    one = one_table()
+    for b in "u":
+        one[f"{b}_psfFlux"], one[f"{b}_psfFluxErr"], one[f"{b}_psfFlux_flag"] = mag_to_flux(21.5), mag_to_flux(21.5) / 20, False
+    sci = pd.DataFrame({"dia_object_id": range(1, 9), "panel_a": [True] * 5 + [False] * 3,
+                        "panel_b": [False] * 5 + [True, False, True], "panel_c": [True] * 5 + [False] * 3})
+    e = ef.select_f9_edp2(one, sci)
+    # same objects as select_f9 ([1, 2, 3, 8]) except 8, whose EDP2 g flux is flagged, so no panel can use it
+    assert sorted(e.dia_object_id) == [1, 2, 3]
+    r = e.set_index("dia_object_id")
+    assert r.loc[1, "gr"] == pytest.approx(0.5) and r.loc[1, "ri"] == pytest.approx(0.2)
+    assert r.loc[1, "gi"] == pytest.approx(0.7) and r.loc[1, "ug"] == pytest.approx(1.0)
+    assert r.loc[1, "mag_r"] == pytest.approx(20.0)
