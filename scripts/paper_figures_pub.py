@@ -61,6 +61,7 @@ STYLE = {
 }
 CAPTION_PT = 8.6
 SHOW_CAPTIONS = True  # False (--no-captions): nothing else in the figures changes, the saved image just ends lower down
+TEXT_SUBS = ()   # (old, new) replacements applied to every figure text in _finish; empty = no change
 
 
 def _plt():
@@ -83,6 +84,14 @@ def _label(ax, letter, line1=None, line2=None, x=0.035, y=0.955):
 
 def _finish(fig, caption, out, name, pdf_pages, legend=None):
     """Optional legend row under the panels, then the caption under everything; save PNG + PDF and add to the book."""
+    if TEXT_SUBS:   # e.g. tmpl -> EDP2 when a template figure is redrawn from EDP2 photometry; empty by default
+        from matplotlib.text import Text
+        for t in fig.findobj(Text):
+            old = new = t.get_text()
+            for x, y in TEXT_SUBS:
+                new = new.replace(x, y)
+            if new != old:
+                t.set_text(new)
     fig.canvas.draw()
     r = fig.canvas.get_renderer()
     axes = [a for a in fig.axes if a.get_visible() and a.axison]
@@ -653,7 +662,7 @@ def fig_r3(v, order, out, book):
     short = {order[0]: "Gaia S/N > 5", order[1]: "pstar ≥ 0.5", order[2]: "pstar < 0.5", order[3]: "neither"}
     long = {order[0]: "Gaia DR3 parallax S/N > 5", order[1]: "pstar ≥ 0.5 without such a parallax",
             order[2]: "pstar < 0.5", order[3]: "neither"}
-    fig, axes = plt.subplots(len(rows), 3, figsize=(WIDTH, 2.05 * len(rows)), sharex="col", sharey="col",
+    fig, axes = plt.subplots(len(rows), 3, figsize=(WIDTH, 2.05 * len(rows)), sharex="col", sharey="col", squeeze=False,
                              gridspec_kw={"hspace": 0.08, "wspace": 0.5})
     counts = []
     letter = 0
