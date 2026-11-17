@@ -3,8 +3,8 @@
 
   fig03   Fig. 3 with panel (d) from EDP2 cModel magnitudes (DIAObjects with an EDP2 Object within 1 arcsec)
   fig04   Fig. 4 = the top two panels of the EDP2 match-check page
-  fig10   Fig. 10: (a) unchanged (template, three SIMBAD groups); (b)-(d) SIMBAD type / no SIMBAD object only, each
-          object's magnitude from EDP2 cModel where it has a usable EDP2 flux in that band, otherwise from its template
+  fig10   Fig. 10: (a) unchanged (template, three SIMBAD groups); (b)-(d) two curves, no SIMBAD split: matched objects
+          with EDP2 cModel magnitudes, and unmatched objects with template magnitudes
   fig11   Fig. 11 as four panels: (a) EDP2 cModel colours (matched), (b) template colours of the DIAObjects without an
           EDP2 match, (c) same-night transient colours over (a), (d) time span; no legend row
   fig14   Fig. 14 twice: template colours of DIAObjects without an EDP2 match; EDP2 cModel colours of matched ones
@@ -150,19 +150,26 @@ def fig10(tp, e, sci, out, book, pub):
         h, _ = np.histogram(v, edges)
         ha.stairs(h / h.sum() / 0.25, edges, color=col, lw=1.2)
     ha.set_xlabel(r"$i_{\rm tmpl}$ (AB)")
+    ee = e.set_index("dia_object_id").reindex(d.dia_object_id)
+    matched = ee["matched"].to_numpy(bool)
+    two = (("EDP2 match: EDP2 cModel magnitude", pub.INK), ("no EDP2 match: template magnitude", pub.RED))
     for ax, band, sm, let, lab in ((hb, "i", ~dusty, "(b)", "i band, outside bulge and plane"),
                                    (hc, "i", dusty, "(c)", "i band, bulge and plane fields"),
                                    (hd, "r", pd.Series(True, index=d.index), "(d)", "r band, all fields")):
-        mag, use_e, use_t = hybrid(d, e, band)
-        for gname, m, col in groups3[:2]:
-            s = (sm & m).to_numpy() & np.isfinite(mag)
-            info[(let, gname)] = {"n": int(s.sum()), "edp2": int((s & use_e).sum()), "template": int((s & use_t).sum()),
-                                  "median": float(np.median(mag[s])) if s.any() else float("nan")}
-            if s.any():
-                h, _ = np.histogram(mag[s], edges)
+        # two curves (Ivezic, 2026-11-16): matched objects with a usable EDP2 cModel flux in this band, using EDP2;
+        # unmatched objects with a usable template in this band, using the template. No SIMBAD split here.
+        sel_e = sm.to_numpy() & ee[f"ok_{band}"].to_numpy(bool)
+        sel_t = sm.to_numpy() & ~matched & d[f"ok_{band}"].fillna(False).to_numpy(bool)
+        for (gname, col), sel, mag in ((two[0], sel_e, ee[f"mag_{band}"].to_numpy(float)),
+                                       (two[1], sel_t, d[f"mag_{band}"].to_numpy(float))):
+            info[(let, gname)] = {"n": int(sel.sum()), "median": float(np.median(mag[sel])) if sel.any() else float("nan")}
+            if sel.any():
+                h, _ = np.histogram(mag[sel], edges)
                 ax.stairs(h / h.sum() / 0.25, edges, color=col, lw=1.2)
         ax.set_xlabel(rf"${band}_{{\rm EDP2}}$ or ${band}_{{\rm tmpl}}$ (AB)")
         info[(let, "label")] = lab
+    hb.legend(handles=[Line2D([], [], color=c, lw=1.6, label=g) for g, c in two], loc="upper left", fontsize=7.5,
+              handlelength=1.4, bbox_to_anchor=(0.0, 0.86))
     for ax, let, lab in ((ha, "(a)", "i band, all fields"), (hb, "(b)", info[("(b)", "label")]),
                          (hc, "(c)", info[("(c)", "label")]), (hd, "(d)", info[("(d)", "label")])):
         ax.set_xlim(13, 25); ax.set_ylim(0, None); ax.set_ylabel("Normalised density")
