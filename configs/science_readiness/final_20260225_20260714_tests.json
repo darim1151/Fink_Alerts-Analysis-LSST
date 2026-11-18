@@ -1,0 +1,79 @@
+{
+  "audit_policy_regression": {
+    "cases": [
+      {
+        "expected": true,
+        "sql": "read_parquet(x, union_by_name=false)"
+      },
+      {
+        "expected": true,
+        "sql": "read_parquet(x, (union_by_name = CAST('f' AS BOOLEAN)))"
+      },
+      {
+        "expected": false,
+        "sql": "read_parquet(x, union_by_name=true)"
+      },
+      {
+        "expected": false,
+        "sql": "read_parquet(x, (union_by_name = CAST('t' AS BOOLEAN)))"
+      },
+      {
+        "expected": false,
+        "sql": "read_parquet(x)"
+      },
+      {
+        "expected": false,
+        "sql": "read_parquet(x, union_by_name=NULL)"
+      },
+      {
+        "expected": false,
+        "sql": "read_parquet(x, union_by_name=false, union_by_name=true)"
+      }
+    ],
+    "failed": 0,
+    "passed": 7,
+    "script_sha256": "b95e8619fca6075a348e67752bcc2351ec7450740ebf084dd18781c1fdd1bf8e"
+  },
+  "focused": {
+    "failed": 1,
+    "passed": 125
+  },
+  "full_offline": {
+    "code_sha": "7e58b13c77bd0e4bc81e41e3c2b4759db382499b",
+    "command": [
+      "/Users/darim_shamsi/Documents/Fink Analysis/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 1,
+    "failed": 1,
+    "log_path": "/private/tmp/fink-final-campaign/full_offline_tests.log",
+    "passed": 661,
+    "run_utc": "2026-10-06T10:39:05.681348+00:00",
+    "skipped": 0
+  },
+  "full_offline_log_sha256": "70ef32bc4006c6ea5ce0d8606ada1f894c044d196acc30468a2760a87c7bad43",
+  "known_failure": {
+    "baseline_sha": "5f26a2026022e5ae7f708d4625aad6190ea3215f",
+    "classification": "VERIFIED pre-existing lexical SHA256 collision; non-scientific",
+    "facts": [
+      {
+        "digest_matches": [
+          "4e4b0afb07b356ed535d78a7c9e18b0f4760d9c3ad3f0523b4f49092619238cf"
+        ],
+        "file_sha256": "89ca392a5ef9d2910c590efba23bb47291560817f33bb657282d41770a5885ec",
+        "path": "configs/acquisitions/acq_lsst_ls_v1_2026-04-25_to_2026-05-25_1ccf601aa29f/evidence/inventory_summary_1.json",
+        "unchanged_from_base": true
+      }
+    ],
+    "focused_tests": {
+      "failed": 1,
+      "passed": 125
+    },
+    "known_failure": "test_committed_acquisition_files_carry_no_credentials",
+    "security_assertion_preserved": true,
+    "structured_credential_detection": "PASS across all acquisition files"
+  },
+  "source_scripts_tests_unchanged_from_base": true
+}

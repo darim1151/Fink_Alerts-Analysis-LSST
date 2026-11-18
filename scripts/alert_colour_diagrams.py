@@ -1,0 +1,478 @@
+#!/usr/bin/env python
+"""Template-photometry colour-magnitude and colour-colour diagrams for DIA alerts.
+
+Light Static alerts carry no coadd CModel or PSF-minus-model photometry. The only
+static-sky quantity per band is ``templateFlux``: forced PSF photometry on the
+difference-imaging template centred at the DIA object position (nJy). This script
+aggregates it per DIA object and band, converts to AB magnitudes and draws:
+
+  (a) r_tmpl vs (g - i)_tmpl     (b) (g - r)_tmpl vs (u - g)_tmpl
+  (c) (r - i)_tmpl vs (g - r)_tmpl
+
+for all colour-eligible DIA objects and for subsamples defined by the Fink
+labels present in the delivery (CATS broad class, SIMBAD crossmatch label).
+SSO sources are counted but not plotted: they have no object key and no static
+template counterpart.
+
+The catalog is opened read-only through ``open_catalog``. Outputs go to a new,
+run-scoped directory that must not already exist.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import platform
+import sys
+import time
+from pathlib import Path
+
+import duckdb
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from fink_lsst.analytics.catalog import open_catalog  # noqa: E402
+
+BANDS = ("u", "g", "r", "i", "z", "y")
+AB_ZP_NJY = 31.4  # m_AB = 31.4 - 2.5 log10(f / nJy)
+MIN_TEMPLATE_SNR = 5.0
+
+# Fink's own class names (fink_science/rubin/cats/utilities.py CATS_CLASS_DICT), shown as classifier labels.
+# They name what each class was trained on; they are not verified classes of the plotted objects.
+CATS_LABELS = {
+    11: 'Fink CATS label "SN-like" (code 11)',
+    12: 'Fink CATS label "Fast" (code 12)',
+    13: 'Fink CATS label "Long" (code 13)',
+    21: 'Fink CATS label "Periodic" (code 21)',
+    22: 'Fink CATS label "non-Periodic (AGN)" (code 22)',
+    -1: "Fink CATS code −1: first alert, not classified",
+}
+SIMBAD_RADIUS_NOTE = "1″"
+NO_MATCH = "No SIMBAD object within 1″"
+XM_FAILED = "Crossmatch failed: SIMBAD status unknown"
+DDF = "Deep drilling fields"
+
+SIMBAD_QSO_AGN = {"QSO", "AGN", "Sy1", "Sy2", "SyG", "Sy?", "BLL", "BL?", "Bla", "Bz?", "Q?", "AG?", "LIN", "LI?"}
+SIMBAD_GALAXY = {"G", "G?", "rG", "GiG", "GiC", "GiP", "BiC", "GrG", "EmG", "CGG", "SBG", "H2G", "LSB", "bCG",
+                 "PaG", "ClG", "IG", "Gr?", "SB?", "HzG", "BCG", "LeG", "Sy3"}
+# Stellar candidate codes that do not contain '*'.
+SIMBAD_STAR_EXTRA = {"WD?", "AB?", "LP?", "RR?", "HS?", "CV?", "EB?", "RG?", "HB?", "BS?", "Ce?", "dS?", "PM?",
+                     "s?r", "s?b", "s?y", "s?g", "Mi?", "Pu?", "RB?", "BD?", "TT?", "Ae?", "Be?", "Em?", "WR?",
+                     "N*?", "Sy*?", "No?", "cC?", "RS?", "BY?", "Ir?", "Or?", "pA?", "OH?", "CH?", "HXB?",
+                     "LXB?", "XB?", "WV?", "ZZ?", "El?", "SX?", "gD?", "S*?", "C*?", "Y*?", "pr?", "LM?", "Ro?",
+                     "Er?", "RC?", "sg?", "PN?"}
+
+
+def simbad_group(otype, answered):
+    """otype: latest SIMBAD type among the object's alerts whose crossmatch succeeded; answered: any alert's
+    crossmatch succeeded (Fink writes "Fail" when the CDS xmatch request errors, null when nothing is within 1″)."""
+    if isinstance(otype, str) and otype:
+        pass
+    elif answered:
+        return NO_MATCH
+    else:
+        return XM_FAILED
+    if otype in SIMBAD_QSO_AGN:
+        return "QSO / AGN"
+    if otype in SIMBAD_GALAXY:
+        return "Galaxy"
+    if "*" in otype or otype in SIMBAD_STAR_EXTRA:
+        return "Star"
+    return "Other SIMBAD type"
+
+
+OBJECT_SQL = """
+WITH dia AS (
+  SELECT dia_object_id, band, template_flux, template_flux_err, ra_deg, dec_deg
+  FROM sources WHERE population = 'DIA'
+), per_band AS (
+  SELECT dia_object_id, band, count(*) AS n_src,
+         count(*) FILTER (WHERE isfinite(template_flux) AND isfinite(template_flux_err)) AS n_finite,
+         median(template_flux) FILTER (WHERE isfinite(template_flux) AND isfinite(template_flux_err)) AS tf,
+         median(template_flux_err) FILTER (WHERE isfinite(template_flux) AND isfinite(template_flux_err)) AS tfe,
+         min(template_flux) FILTER (WHERE isfinite(template_flux)) AS tf_min,
+         max(template_flux) FILTER (WHERE isfinite(template_flux)) AS tf_max
+  FROM dia GROUP BY 1, 2
+), pos AS (
+  SELECT dia_object_id, count(*) AS n_sources, avg(ra_deg) AS ra_deg, avg(dec_deg) AS dec_deg
+  FROM dia GROUP BY 1
+), latest AS (
+  SELECT dia_object_id,
+         TRY_CAST(pred_json->>'main_label_classifier' AS INTEGER) AS cats_class_latest,
+         pred_json->>'main_label_crossmatch' AS simbad_otype_latest,
+         observation_mjd_tai AS label_mjd_tai,
+         row_number() OVER (PARTITION BY dia_object_id ORDER BY observation_mjd_tai DESC, source_id DESC) AS rk
+  FROM dia_source_snapshots
+), simbad_valid AS (
+  SELECT dia_object_id, pred_json->>'main_label_crossmatch' AS simbad_otype_valid,
+         row_number() OVER (PARTITION BY dia_object_id ORDER BY observation_mjd_tai DESC, source_id DESC) AS rk
+  FROM dia_source_snapshots
+  WHERE (pred_json->>'main_label_crossmatch') IS NOT NULL AND (pred_json->>'main_label_crossmatch') <> 'Fail'
+), simbad_answered AS (
+  SELECT dia_object_id,
+         bool_or((pred_json->>'main_label_crossmatch') IS NULL OR (pred_json->>'main_label_crossmatch') <> 'Fail') AS simbad_answered,
+         count(*) FILTER (WHERE (pred_json->>'main_label_crossmatch') = 'Fail') AS n_simbad_fail
+  FROM dia_source_snapshots GROUP BY 1
+), label_stability AS (
+  SELECT dia_object_id,
+         count(DISTINCT TRY_CAST(pred_json->>'main_label_classifier' AS INTEGER)) AS n_distinct_cats_class
+  FROM dia_source_snapshots GROUP BY 1
+)
+SELECT pos.*, latest.cats_class_latest, latest.simbad_otype_latest, latest.label_mjd_tai,
+       simbad_valid.simbad_otype_valid, simbad_answered.simbad_answered, simbad_answered.n_simbad_fail,
+       label_stability.n_distinct_cats_class,
+       {pivot}
+FROM pos
+JOIN latest USING (dia_object_id)
+JOIN label_stability USING (dia_object_id)
+JOIN simbad_answered USING (dia_object_id)
+LEFT JOIN simbad_valid ON simbad_valid.dia_object_id = pos.dia_object_id AND simbad_valid.rk = 1
+LEFT JOIN per_band ON per_band.dia_object_id = pos.dia_object_id
+WHERE latest.rk = 1
+GROUP BY ALL
+ORDER BY pos.dia_object_id
+"""
+
+
+def object_table(conn):
+    cols = []
+    for b in BANDS:
+        for name in ("n_src", "n_finite", "tf", "tfe", "tf_min", "tf_max"):
+            cols.append(f"max({name}) FILTER (WHERE band = '{b}') AS {name}_{b}")
+    return conn.execute(OBJECT_SQL.format(pivot=",\n       ".join(cols))).df()
+
+
+def add_magnitudes(df):
+    for b in BANDS:
+        tf, tfe = df[f"tf_{b}"].astype(float), df[f"tfe_{b}"].astype(float)
+        ok = np.isfinite(tf) & np.isfinite(tfe) & (tf > 0) & (tfe > 0) & (tf / tfe >= MIN_TEMPLATE_SNR)
+        df[f"ok_{b}"] = ok
+        with np.errstate(divide="ignore", invalid="ignore"):
+            df[f"mag_{b}"] = np.where(ok, AB_ZP_NJY - 2.5 * np.log10(tf), np.nan)
+            df[f"magerr_{b}"] = np.where(ok, 2.5 / np.log(10) * tfe / tf, np.nan)
+    df["gi"] = df.mag_g - df.mag_i
+    df["gr"] = df.mag_g - df.mag_r
+    df["ri"] = df.mag_r - df.mag_i
+    df["ug"] = df.mag_u - df.mag_g
+    df["panel_a"] = df.ok_g & df.ok_r & df.ok_i
+    df["panel_c"] = df.panel_a
+    df["panel_b"] = df.ok_u & df.ok_g & df.ok_r
+    df["cats_label"] = df.cats_class_latest.map(lambda c: CATS_LABELS.get(int(c), f"code {int(c)}") if pd.notna(c) else "Missing")
+    df["simbad_group"] = [simbad_group(o, a) for o, a in zip(df.simbad_otype_valid, df.simbad_answered)]
+    return df
+
+
+def field_group(target):
+    """Observing-programme group from target_name (same precedence as scripts/alert_science_suite.py)."""
+    t = str(target)
+    parts = {p.strip() for p in t.split(",")}
+    if any(p.startswith("ddf_") for p in parts):
+        return DDF
+    if "field_m49" in parts:
+        return "M49 field"
+    if any(p.startswith("neutrino") for p in parts):
+        return "Target of opportunity"
+    if t.startswith("alt:"):
+        return "Engineering"
+    if "dusty_plane" in parts:
+        return "Galactic plane"
+    if "bulgy" in parts:
+        return "Galactic bulge"
+    if "nes" in parts:
+        return "North ecliptic spur"
+    if "lowdust" in parts:
+        return "Low-dust WFD"
+    return "Other"
+
+
+def object_fields(raw_files):
+    """Per DIA object: most frequent programme group over its alerts (ties: alphabetical) and whether any alert is in a DDF."""
+    import pyarrow.dataset as pads
+    t = pads.dataset(raw_files, format="parquet").to_table(columns=["diaObjectId", "target_name", "pred"])
+    d = pd.DataFrame({"dia_object_id": t.column("diaObjectId").to_numpy(),
+                      "target": t.column("target_name").to_pandas(),
+                      "is_sso": t.column("pred").combine_chunks().field("is_sso").to_pandas()})
+    d = d[(d.is_sso == False) & (d.dia_object_id > 0)]  # noqa: E712  (analysis_contract_v1 DIA rule)
+    groups = {v: field_group(v) for v in d.target.dropna().unique()}
+    d["field"] = d.target.map(groups).fillna("Other")
+    c = d.groupby(["dia_object_id", "field"]).size().rename("n").reset_index()
+    c = c.sort_values(["dia_object_id", "n", "field"], ascending=[True, False, True]).drop_duplicates("dia_object_id")
+    anyddf = d.assign(x=d.field == DDF).groupby("dia_object_id").x.any().rename("any_alert_in_ddf")
+    return c.set_index("dia_object_id")[["field"]].join(anyddf)
+
+
+def galactic_latitude(ra, dec):
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    return SkyCoord(ra=np.asarray(ra) * u.deg, dec=np.asarray(dec) * u.deg, frame="icrs").galactic.b.deg
+
+
+PANELS = (
+    # key, x column, y column, x label, y label, x range, y range, invert y
+    ("panel_a", "gi", "mag_r", r"$(g-i)_\mathrm{tmpl}$", r"$r_\mathrm{tmpl}$ (template PSF, AB)", (-1.0, 4.0), (14.0, 26.0), True),
+    ("panel_b", "ug", "gr", r"$(u-g)_\mathrm{tmpl}$", r"$(g-r)_\mathrm{tmpl}$", (-1.0, 4.0), (-0.75, 2.25), False),
+    ("panel_c", "gr", "ri", r"$(g-r)_\mathrm{tmpl}$", r"$(r-i)_\mathrm{tmpl}$", (-0.75, 2.25), (-0.75, 2.75), False),
+)
+
+INK, INK_MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
+HIGHLIGHT = "#2a78d6"  # categorical slot 1 (reference palette); one highlight hue per facet
+
+
+def style(plt):
+    plt.rcParams.update({
+        "font.size": 9, "axes.edgecolor": INK_MUTED, "axes.labelcolor": INK, "xtick.color": INK_MUTED,
+        "ytick.color": INK_MUTED, "axes.titlesize": 9, "axes.titlecolor": INK, "figure.dpi": 150,
+        "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.5, "axes.axisbelow": True,
+    })
+
+
+def background(ax, d, x, y, xr, yr):
+    n = len(d)
+    if n == 0:
+        return
+    bins = int(np.clip(np.sqrt(n) / 2, 25, 60))
+    h, xe, ye = np.histogram2d(d[x], d[y], bins=bins, range=(xr, yr))
+    xc, yc = 0.5 * (xe[1:] + xe[:-1]), 0.5 * (ye[1:] + ye[:-1])
+    ax.pcolormesh(xe, ye, np.log10(h.T + 1), cmap="Greys", alpha=0.45, shading="flat", rasterized=True)
+    # Contours on a 3x3 box-smoothed histogram; levels enclose 50/80/95% of the objects.
+    p = np.pad(h, 1)
+    hsm = sum(p[i:i + h.shape[0], j:j + h.shape[1]] for i in range(3) for j in range(3)) / 9.0
+    hs = np.sort(hsm.ravel())[::-1]
+    cum = np.cumsum(hs) / hs.sum()
+    levels = sorted({hs[min(np.searchsorted(cum, f), len(hs) - 1)] for f in (0.5, 0.8, 0.95)})
+    levels = [lv for lv in levels if lv > 0]
+    if levels:
+        ax.contour(xc, yc, hsm.T, levels=levels, colors=INK_MUTED, linewidths=0.7)
+
+
+def draw_panels(axes, df, sub, title_prefix, show_labels):
+    for ax, (key, x, y, xl, yl, xr, yr, inv) in zip(axes, PANELS):
+        shown = (sub if sub is not None else df)
+        shown = shown[shown[key]]
+        base = df[df[key]]
+        background(ax, base, x, y, xr, yr)
+        n_out = 0
+        if sub is not None:
+            s = sub[sub[key]]
+            inside = s[x].between(*xr) & s[y].between(*yr)
+            n_out = int((~inside).sum())
+            ax.scatter(s.loc[inside, x], s.loc[inside, y], s=4 if len(s) > 2000 else 8, color=HIGHLIGHT,
+                       edgecolors="white", linewidths=0.2, alpha=0.8 if len(s) > 2000 else 0.95, rasterized=True)
+            txt = f"n = {len(s):,}" + (f" ({n_out:,} off-axis)" if n_out else "")
+        else:
+            inside = base[x].between(*xr) & base[y].between(*yr)
+            txt = f"n = {len(base):,}" + (f" ({int((~inside).sum()):,} off-axis)" if (~inside).any() else "")
+        if key == "panel_b" and len(shown):
+            n_ddf = int((shown.field == DDF).sum())
+            # Programme = the group of most of the object's alerts (see object_fields).
+            txt += ("\nall: deep-drilling fields (most alerts)" if n_ddf == len(shown)
+                    else f"\n{n_ddf:,} of {len(shown):,}: deep-drilling fields (most alerts)")
+        ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", ha="left", fontsize=7.5, color=INK)
+        ax.set_xlim(*xr)
+        ax.set_ylim(*(yr[::-1] if inv else yr))
+        if show_labels:
+            ax.set_xlabel(xl)
+        ax.set_ylabel(yl)
+    axes[0].set_title(title_prefix, loc="left", fontsize=9, fontweight="bold")
+
+
+def figure_overview(df, plt, out, window):
+    """Fig. 1: all colour-eligible DIA objects. `window` = (first, last) requested UTC date of the cohort."""
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
+    draw_panels(axes, df, None, "All colour-eligible DIA objects (grey: log density; contours enclose 50/80/95%)", True)
+    fig.suptitle(f"Fink LSST Light Static alerts, {window[0]} to {window[1]}: template PSF photometry per DIA object",
+                 fontsize=10, color=INK)
+    for ext in ("png", "pdf"):
+        fig.savefig(out / f"fig1_overview_all_dia.{ext}")
+    plt.close(fig)
+
+
+def figure_facets(df, column, order, plt, out, name, suptitle):
+    present = [g for g in order if ((df[column] == g) & (df.panel_a | df.panel_b)).any()]
+    fig, axes = plt.subplots(len(present), 3, figsize=(12, 3.1 * len(present)), constrained_layout=True, squeeze=False)
+    for row, g in enumerate(present):
+        draw_panels(axes[row], df, df[df[column] == g], g, row == len(present) - 1)
+    fig.suptitle(suptitle, fontsize=10, color=INK)
+    for ext in ("png", "pdf"):
+        fig.savefig(out / f"{name}.{ext}")
+    plt.close(fig)
+
+
+def counts_table(df, column):
+    rows = []
+    for g, d in df.groupby(column, dropna=False):
+        rows.append({column: g, "dia_objects": len(d), "panel_a_and_c_gri": int(d.panel_a.sum()),
+                     "panel_b_ugr": int(d.panel_b.sum())})
+    return pd.DataFrame(rows).sort_values("dia_objects", ascending=False)
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+# ============================================================================= pipeline steps
+# The steps below are called in this order by main() and by notebooks/science/01_template_colours.ipynb.
+
+def cohort_window(conn):
+    """First and last requested UTC date of the cohort (the requested window is half-open, so 'last' is stop - 1 day)."""
+    first, last = conn.execute("SELECT min(utc_date), max(utc_date) FROM requested_date_boundaries").fetchone()
+    return str(first), str(last)
+
+
+def load_catalog_inputs(catalog, data_root, threads=16, memory_limit="24GB", temp_dir="/local/tmp"):
+    """Open the analytical catalog read-only and collect everything the colour diagrams need.
+
+    Returns a dict with: meta (catalog metadata), pop (source rows per population), band_pop (template-flux
+    summary per population and band), raw_files (the catalog's pinned Parquet files), broker_versions,
+    window (first, last requested UTC date) and df (one row per DIA object: template photometry, labels, programme).
+    """
+    conn = open_catalog(catalog, data_root)
+    conn.execute(f"SET threads={threads}; SET memory_limit='{memory_limit}'; SET temp_directory='{temp_dir}'")
+    meta = dict(conn.execute("SELECT key, value FROM catalog_metadata").fetchall())
+    pop = dict(conn.execute("SELECT population, count(*) FROM sources GROUP BY 1").fetchall())
+    band_pop = conn.execute("""
+        SELECT population, band, count(*) AS sources,
+               count(*) FILTER (WHERE isfinite(template_flux)) AS finite_template,
+               count(*) FILTER (WHERE template_flux > 0) AS positive_template,
+               median(template_flux) AS median_template_flux_njy
+        FROM sources GROUP BY 1, 2 ORDER BY 1, 2""").df()
+    raw_files = [r[0] for r in conn.execute("SELECT DISTINCT raw_file FROM sources ORDER BY 1").fetchall()]
+    window = cohort_window(conn)
+    mem = duckdb.connect()
+    mem.execute(f"SET threads={threads}")
+    broker_versions = mem.execute("""
+        SELECT fink_broker_version, fink_science_version, count(*) AS rows
+        FROM read_parquet(?, union_by_name=false) GROUP BY 1, 2 ORDER BY 3 DESC""", [raw_files]).df()
+    mem.close()
+
+    df = object_table(conn)
+    conn.close()
+    df = add_magnitudes(df)
+    df["gal_b_deg"] = galactic_latitude(df.ra_deg, df.dec_deg)
+    df = df.join(object_fields(raw_files), on="dia_object_id")
+    assert df.field.notna().all(), "every DIA object must have a programme group"
+    assert df.dia_object_id.is_unique
+    return {"meta": meta, "pop": pop, "band_pop": band_pop, "raw_files": raw_files,
+            "broker_versions": broker_versions, "window": window, "df": df}
+
+
+def template_stability(df):
+    """Spread of templateFlux across an object's alerts in one band, (max - min) / median (templates may be rebuilt)."""
+    stab = {}
+    for b in BANDS:
+        m = df[f"ok_{b}"] & (df[f"n_finite_{b}"] >= 2)
+        rel = ((df.loc[m, f"tf_max_{b}"] - df.loc[m, f"tf_min_{b}"]) / df.loc[m, f"tf_{b}"]).astype(float)
+        stab[b] = {"objects_with_ge2_sources": int(m.sum()),
+                   "median_rel_range": float(rel.median()) if len(rel) else None,
+                   "p90_rel_range": float(rel.quantile(0.9)) if len(rel) else None}
+    return stab
+
+
+def write_tables(inputs, tables_dir):
+    """Write the per-object table and the count tables. Returns (counts by CATS label, counts by SIMBAD group)."""
+    df = inputs["df"]
+    df.to_parquet(tables_dir / "dia_object_template_photometry.parquet", index=False)
+    cats = counts_table(df, "cats_label")
+    simb = counts_table(df, "simbad_group")
+    cats.to_csv(tables_dir / "counts_by_cats_class.csv", index=False)
+    simb.to_csv(tables_dir / "counts_by_simbad_group.csv", index=False)
+    otypes = (df.groupby(["simbad_otype_valid", "simbad_group"], dropna=False)
+                .agg(dia_objects=("dia_object_id", "size"), panel_a_and_c_gri=("panel_a", "sum"), panel_b_ugr=("panel_b", "sum"))
+                .reset_index().sort_values("dia_objects", ascending=False))
+    otypes.to_csv(tables_dir / "simbad_otype_to_group.csv", index=False)
+    inputs["band_pop"].to_csv(tables_dir / "template_flux_by_population_band.csv", index=False)
+    inputs["broker_versions"].to_csv(tables_dir / "fink_versions.csv", index=False)
+    return cats, simb
+
+
+def make_figures(df, figs_dir, window):
+    """Figs. 1-3: overview, by Fink CATS label, by SIMBAD group. Returns the list of written PNG paths."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    style(plt)
+    figure_overview(df, plt, figs_dir, window)
+    figure_facets(df, "cats_label", [CATS_LABELS[k] for k in (11, 12, 13, 21, 22, -1)], plt, figs_dir,
+                  "fig2_by_fink_cats_class",
+                  "Fink CATS classifier label at each object's latest delivered alert (blue) over all colour-eligible DIA objects (grey).\n"
+                  "Labels are Fink's broad classes, not verified object types (see the classifier-validation figure K1).")
+    figure_facets(df, "simbad_group", ["Star", "QSO / AGN", "Galaxy", "Other SIMBAD type", NO_MATCH, XM_FAILED],
+                  plt, figs_dir, "fig3_by_fink_simbad_crossmatch",
+                  "Fink SIMBAD crossmatch (1″ radius): latest type from an alert whose crossmatch succeeded (blue) over all colour-eligible DIA objects (grey).\n"
+                  "Crossmatch failed = Fink's CDS request errored on every alert of the object, so its SIMBAD status is unknown.")
+    return [figs_dir / f"{n}.png" for n in ("fig1_overview_all_dia", "fig2_by_fink_cats_class", "fig3_by_fink_simbad_crossmatch")]
+
+
+def build_summary(inputs, stab, cats, simb, run_name, code_sha, catalog, runtime_s):
+    """Provenance and headline numbers written to summary.json."""
+    df = inputs["df"]
+    elig = df[df.panel_a | df.panel_b]
+    summary = {
+        "run": run_name,
+        "code_sha": code_sha,
+        "script_sha256": sha256(Path(__file__)),
+        "catalog": str(catalog),
+        "catalog_sha256": sha256(catalog),
+        "catalog_contract": json.loads(inputs["meta"]["contract_id"]),
+        "cohort_window_utc": list(inputs["window"]),
+        "python": platform.python_version(),
+        "packages": {m: __import__(m).__version__ for m in ("duckdb", "numpy", "pandas", "matplotlib", "astropy", "pyarrow")},
+        "source_rows_by_population": inputs["pop"],
+        "dia_objects": int(len(df)),
+        "objects_with_band_ok": {b: int(df[f"ok_{b}"].sum()) for b in BANDS},
+        "panel_a_and_c_gri_objects": int(df.panel_a.sum()),
+        "panel_b_ugr_objects": int(df.panel_b.sum()),
+        "eligible_abs_gal_b_lt_15_fraction": float((elig.gal_b_deg.abs() < 15).mean()) if len(elig) else None,
+        "panel_b_by_field": df[df.panel_b].field.value_counts().to_dict(),
+        "panel_a_by_field": df[df.panel_a].field.value_counts().to_dict(),
+        "objects_simbad_fail_on_all_alerts": int((~df.simbad_answered).sum()),
+        "objects_latest_fail_but_valid_type_elsewhere": int(((df.simbad_otype_latest == "Fail") & df.simbad_otype_valid.notna()).sum()),
+        "objects_with_changing_cats_class": int((df.n_distinct_cats_class > 1).sum()),
+        "eligible_with_changing_cats_class": int((elig.n_distinct_cats_class > 1).sum()),
+        "template_stability": stab,
+        "cuts": {"population": "DIA", "template_flux_aggregate": "per object and band median over delivered sources with finite flux and error",
+                 "min_template_snr": MIN_TEMPLATE_SNR, "positive_flux": True, "ab_zero_point_njy": AB_ZP_NJY,
+                 "extinction_correction": None, "label_rule": "CATS: latest delivered snapshot per DIA object (max observation_mjd_tai, then max source_id); "
+                               "SIMBAD: latest type among alerts whose crossmatch did not return Fail; no-match if any alert's crossmatch succeeded; "
+                               "crossmatch failed only if every alert returned Fail",
+                 "field_rule": "most frequent programme group of the object's alerts (target_name), ties alphabetical"},
+        "runtime_seconds": runtime_s,
+    }
+    for col, t in (("cats_label", cats), ("simbad_group", simb)):
+        summary[f"counts_by_{col}"] = t.to_dict(orient="records")
+    return summary
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--catalog", required=True)
+    p.add_argument("--data-root", required=True)
+    p.add_argument("--out", required=True, help="new run-scoped output directory (must not exist)")
+    p.add_argument("--code-sha", required=True)
+    p.add_argument("--temp-dir", required=True)
+    p.add_argument("--threads", type=int, default=16)
+    p.add_argument("--memory-limit", default="24GB")
+    a = p.parse_args(argv)
+
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "figures").mkdir()
+    (out / "tables").mkdir()
+    t0 = time.time()
+    inputs = load_catalog_inputs(a.catalog, a.data_root, a.threads, a.memory_limit, a.temp_dir)
+    stab = template_stability(inputs["df"])
+    cats, simb = write_tables(inputs, out / "tables")
+    make_figures(inputs["df"], out / "figures", inputs["window"])
+    summary = build_summary(inputs, stab, cats, simb, out.name, a.code_sha, a.catalog, round(time.time() - t0, 1))
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=int) + "\n")
+    print(json.dumps({k: summary[k] for k in ("dia_objects", "objects_with_band_ok", "panel_a_and_c_gri_objects",
+                                               "panel_b_ugr_objects", "runtime_seconds")}, default=int))
+
+
+if __name__ == "__main__":
+    main()
