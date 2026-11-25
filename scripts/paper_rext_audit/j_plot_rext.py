@@ -37,7 +37,7 @@ H['all r_ext=0'], H['all r_ext=1'] = g['cp0_F14_d_0'], g['cp0_F14_d_1']
 sl = kit.load_locus(locus)
 
 
-def contour(ax, h, color, lw=1.1):
+def contour(ax, h, color, lw):
     assert h.shape == (60, 60)
     p = np.pad(h.astype(float), 1)
     hs = sum(p[i:i + 60, j:j + 60] for i in range(3) for j in range(3)) / 9.0
@@ -45,37 +45,58 @@ def contour(ax, h, color, lw=1.1):
     cum = np.cumsum(v) / v.sum()
     lv = sorted({v[min(np.searchsorted(cum, f), len(v) - 1)] for f in (0.5, 0.8, 0.95)})
     xe, ye = np.linspace(*GR, 61), np.linspace(*RI, 61)
-    ax.contour(0.5 * (xe[1:] + xe[:-1]), 0.5 * (ye[1:] + ye[:-1]), hs.T, levels=[l for l in lv if l > 0], colors=color, linewidths=lw)
+    return ax.contour(0.5 * (xe[1:] + xe[:-1]), 0.5 * (ye[1:] + ye[:-1]), hs.T, levels=[l for l in lv if l > 0],
+                      colors=color, linewidths=lw)
 
 
 def n(key):
     return int(H[key].sum())
 
 
+# Zeljko, 2026-11-25: stars in the colour of the stellar-locus band, galaxies in another colour, thinner lines for
+# stars; in (c) the G > 0.8 set takes the galaxy colour and the G < 0.2 set the star colour.
+ROLE = {'star': (kit.LOCUS_COLOR, 0.7), 'galaxy': (BLUE, 1.6)}
 panels = [
-    ('(a) as delivered: all fields', [('all r_ext=0', BLUE, 'r_ext = 0'), ('all r_ext=1', RED, 'r_ext = 1')]),
-    ('(b) outside bulge and plane', [('F14 elsewhere r_ext=0', BLUE, 'r_ext = 0'), ('F14 elsewhere r_ext=1', RED, 'r_ext = 1')]),
-    ('(c) r_ext = 1 only, split by G', [('F14 elsewhere r_ext=1 & G<0.2', ORANGE, 'r_ext = 1, G < 0.2'), ('F14 elsewhere r_ext=1 & G>0.8', RED, 'r_ext = 1, G > 0.8')]),
-    ('(d) split by G instead', [('F14 elsewhere G<0.2', BLUE, 'G < 0.2'), ('F14 elsewhere G>0.8', RED, 'G > 0.8')]),
+    ('(a) as delivered: all fields', [('all r_ext=0', 'star', 'r_ext = 0'), ('all r_ext=1', 'galaxy', 'r_ext = 1')]),
+    ('(b) outside bulge and plane', [('F14 elsewhere r_ext=0', 'star', 'r_ext = 0'), ('F14 elsewhere r_ext=1', 'galaxy', 'r_ext = 1')]),
+    ('(c) r_ext = 1 only, split by G', [('F14 elsewhere r_ext=1 & G<0.2', 'star', 'r_ext = 1, G < 0.2'),
+                                        ('F14 elsewhere r_ext=1 & G>0.8', 'galaxy', 'r_ext = 1, G > 0.8')]),
+    ('(d) split by G instead', [('F14 elsewhere G<0.2', 'star', 'G < 0.2'), ('F14 elsewhere G>0.8', 'galaxy', 'G > 0.8')]),
 ]
 fig, axes = plt.subplots(2, 2, figsize=(7.2, 6.6), gridspec_kw={'hspace': 0.30, 'wspace': 0.28})
+drawn = []
 for ax, (title, sets) in zip(axes.ravel(), panels):
     kit.draw_locus(ax, sl, 'gr', 'ri')
     handles = []
-    for key, col, lab in sets:
-        contour(ax, H[key], col)
-        handles.append(Line2D([], [], color=col, lw=1.2, label=f'{lab}: {n(key):,}'))
+    for key, role, lab in sets:                  # stars first, galaxies drawn on top
+        col, lw = ROLE[role]
+        drawn.append((title, key, role, contour(ax, H[key], col, lw)))
+        handles.append(Line2D([], [], color=col, lw=lw, label=f'{lab}: {n(key):,}'))
     ax.set_xlim(*GR); ax.set_ylim(*RI)
     ax.set_xlabel(r'$(g-r)_{\rm EDP2\,cModel}$'); ax.set_ylabel(r'$(r-i)_{\rm EDP2\,cModel}$')
     ax.minorticks_on()
     ax.text(0.035, 0.965, title, transform=ax.transAxes, va='top', fontsize=8.6, fontweight='bold')
-    ax.legend(handles=handles, loc='upper left', bbox_to_anchor=(0.0, 0.92), fontsize=7.8, frameon=False, handlelength=1.4)
+    ax.legend(handles=handles, loc='upper left', bbox_to_anchor=(0.0, 0.92), fontsize=7.8, frameon=False, handlelength=1.6)
 fig.text(0.5, 0.0, 'r_ext = EDP2 r_extendedness; G = EDP2 griz_model_extendedness. (b)-(d): outside the Galactic bulge and plane programmes.', ha='center', fontsize=8.2)
 fig.legend(handles=[Patch(facecolor=kit.LOCUS_COLOR, alpha=kit.LOCUS_ALPHA, label=r'stellar locus $\pm$ 2$\sigma$'),
-                    Line2D([], [], color=INK, lw=1, label='contours: 50, 80, 95% of each set (N inside the axes)')],
-           loc='lower center', ncol=2, frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, -0.065))
+                    Line2D([], [], color=ROLE['star'][0], lw=ROLE['star'][1], label='point-like class (thin)'),
+                    Line2D([], [], color=ROLE['galaxy'][0], lw=ROLE['galaxy'][1], label='extended class (thick)')],
+           loc='lower center', ncol=3, frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, -0.065))
+fig.text(0.5, -0.085, 'Contours enclose 50, 80 and 95% of each set; N counts the objects inside the axes.', ha='center', fontsize=8.2)
+
+# checks: every contour set has the colour and width of its role, in every panel
+from matplotlib.colors import to_rgba
+for title, key, role, cs in drawn:
+    col, lw = ROLE[role]
+    assert len(cs.levels) == 3, (title, key)
+    ec = np.atleast_2d(cs.get_edgecolor())
+    assert np.allclose(ec[:, :3], to_rgba(col)[:3]), (title, key, ec)
+    assert np.allclose(np.atleast_1d(cs.get_linewidth()), lw), (title, key)
+assert [r for _, _, r, _ in drawn] == ['star', 'galaxy'] * 4
+assert to_rgba(ROLE['star'][0])[:3] == to_rgba(kit.LOCUS_COLOR)[:3]
 out = run / 'figures'
 out.mkdir(exist_ok=True)
 for ext in ('pdf', 'png'):
-    fig.savefig(out / f'rext_diagnostic_gr_ri.{ext}', bbox_inches='tight', pad_inches=0.08)
+    fig.savefig(out / f'rext_diagnostic_gr_ri_v2.{ext}', bbox_inches='tight', pad_inches=0.08)
 print({k: n(k) for s in panels for k, *_ in s[1]})
+print([(t[:3], k, r) for t, k, r, _ in drawn])
